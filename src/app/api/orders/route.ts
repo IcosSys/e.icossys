@@ -45,26 +45,17 @@ export async function GET(req: NextRequest) {
       const sessions = await stripe.checkout.sessions.list({
         limit: 20,
         status: "complete",
-        expand: ["line_items.data.price.product"],
       });
 
-      const orders = sessions.data.map((s) => {
-        const productObj = s.line_items?.data?.[0]?.price?.product;
-        const productName =
-          productObj && typeof productObj === "object" && "name" in productObj
-            ? (productObj as { name: string }).name
-            : s.line_items?.data?.[0]?.description || null;
-
-        return {
-          id: s.id,
-          amount: s.amount_total,
-          currency: s.currency,
-          customerEmail: s.customer_details?.email || null,
-          paymentStatus: s.payment_status,
-          created: s.created,
-          productName,
-        };
-      });
+      const orders = sessions.data.map((s) => ({
+        id: s.id,
+        amount: s.amount_total,
+        currency: s.currency,
+        customerEmail: s.customer_details?.email || null,
+        paymentStatus: s.payment_status,
+        created: s.created,
+        productName: null,
+      }));
 
       console.log(`[Orders] ${orders.length} commande(s) trouvée(s).`);
       return NextResponse.json({ orders });
