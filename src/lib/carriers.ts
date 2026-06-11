@@ -1,6 +1,5 @@
-import { cookies } from "next/headers";
-
-// ─── Carrier Preset System ────────────────────────────────────────────────
+// ─── Carrier Preset System (client-safe) ───────────────────────────────────
+// Extracted from shipping.ts — contains no server-side imports (no cookies, no async).
 
 export interface CarrierPreset {
   id: string;              // Unique ID matching ShippingOption.carrierId
@@ -115,71 +114,4 @@ export function getAllCarrierCountries(carrierIds: string[]): string[] {
 export function getCountriesForCarrier(carrierId: string): string[] {
   const preset = getCarrierPreset(carrierId);
   return preset ? [...preset.defaultCountries] : [];
-}
-
-// ─── Shipping Option Interface & Defaults ─────────────────────────────────
-
-export interface ShippingOption {
-  id: string;
-  name: string;
-  carrierId?: string; // References CarrierPreset.id (optional for backward compat)
-  price: number;
-  currency: string;
-  active: boolean;
-  minDays: number;
-  maxDays: number;
-}
-
-const COOKIE_NAME = "shipping_config";
-
-export const DEFAULT_SHIPPING_OPTIONS: ShippingOption[] = [
-  {
-    id: "lettre-suivie",
-    name: "Lettre Suivie",
-    carrierId: "lettre-suivie",
-    price: 350,
-    currency: "eur",
-    active: true,
-    minDays: 3,
-    maxDays: 7,
-  },
-  {
-    id: "colissimo-standard",
-    name: "Colissimo Standard",
-    carrierId: "colissimo-standard",
-    price: 590,
-    currency: "eur",
-    active: true,
-    minDays: 2,
-    maxDays: 4,
-  },
-  {
-    id: "chronopost-express",
-    name: "Chronopost Express",
-    carrierId: "chronopost-express",
-    price: 1290,
-    currency: "eur",
-    active: true,
-    minDays: 1,
-    maxDays: 2,
-  },
-];
-
-export async function getShippingConfig(): Promise<ShippingOption[]> {
-  try {
-    const cookieStore = await cookies();
-    const raw = cookieStore.get(COOKIE_NAME)?.value;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {
-    // cookie corrompu → defaults
-  }
-  return DEFAULT_SHIPPING_OPTIONS;
-}
-
-export async function getActiveShippingOptions(): Promise<ShippingOption[]> {
-  const all = await getShippingConfig();
-  return all.filter((o) => o.active);
 }

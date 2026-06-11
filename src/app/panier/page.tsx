@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart, CartItem } from "@/context/CartContext";
+import { ALL_COUNTRIES } from "@/lib/countries";
 
 function formatPrice(cents: number): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -101,6 +102,36 @@ export default function PanierPage() {
   const { items, updateQuantity, removeItem, clearCart, totalPrice } = useCart();
   const router = useRouter();
   const [checkingOut, setCheckingOut] = useState(false);
+  const [shippingCountries, setShippingCountries] = useState<string[] | null>(null);
+  const [showAllCountries, setShowAllCountries] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/countries")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data?.countries)) {
+          setShippingCountries(data.countries);
+        }
+      })
+      .catch(() => {
+        /* silently ignore – section will be hidden */
+      });
+  }, []);
+
+  const deliveryCountryNames = shippingCountries
+    ? shippingCountries
+        .map((code) => ALL_COUNTRIES.find((c) => c.code === code)?.name ?? code)
+        .filter(Boolean)
+    : null;
+  const MAX_VISIBLE = 5;
+  const visibleCountries = deliveryCountryNames
+    ? showAllCountries
+      ? deliveryCountryNames
+      : deliveryCountryNames.slice(0, MAX_VISIBLE)
+    : null;
+  const hiddenCount = deliveryCountryNames
+    ? deliveryCountryNames.length - MAX_VISIBLE
+    : 0;
 
   const handleCheckout = async () => {
     setCheckingOut(true);
@@ -208,6 +239,30 @@ export default function PanierPage() {
                   </div>
                   <p className="text-[11px] text-gray-400 mt-1">Frais de port calculés à la prochaine étape</p>
                 </div>
+
+                {visibleCountries && visibleCountries.length > 0 && (
+                  <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+                      </svg>
+                      <span className="text-[11px] font-semibold text-gray-500">Zone de livraison</span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      {visibleCountries.join(" · ")}
+                      {hiddenCount > 0 && (
+                        <button
+                          onClick={() => setShowAllCountries((v) => !v)}
+                          className="text-gray-500 hover:text-gray-700 font-medium transition-colors ml-1"
+                        >
+                          {showAllCountries
+                            ? "Voir moins"
+                            : `+${hiddenCount} autre${hiddenCount > 1 ? "s" : ""} pays`}
+                        </button>
+                      )}
+                    </p>
+                  </div>
+                )}
 
                 <button
                   onClick={handleCheckout}
