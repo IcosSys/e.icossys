@@ -34,6 +34,29 @@ interface Order {
   shippingName: string | null;
   shippingMethod: string | null;
   trackingNumber: string | null;
+  // Live tracking from AfterShip
+  trackTag: string | null;
+  trackLabel: string | null;
+  trackBg: string | null;
+  trackColor: string | null;
+  trackLastUpdate: string | null;
+}
+
+interface TrackingCheckpoint {
+  time: string;
+  location: string;
+  tag: string;
+  message: string;
+}
+
+interface TrackingData {
+  tag: string;
+  label: string;
+  color: string;
+  bg: string;
+  lastUpdate: string;
+  checkpoints: TrackingCheckpoint[];
+  signedBy: string | null;
 }
 
 interface OrderDetail extends Order {
@@ -214,6 +237,15 @@ function AdminDashboardContent() {
   // Tracking number input in modal
   const [trackingInput, setTrackingInput] = useState("");
   const [savingTracking, setSavingTracking] = useState(false);
+
+  // Live tracking (AfterShip)
+  const [trackData, setTrackData] = useState<TrackingData | null>(null);
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackError, setTrackError] = useState<string | null>(null);
+  const checkingOrdersRef = useRef<Set<string>>(new Set());
+  // Per-order tracking summaries in the list view
+  const [orderTrackStatus, setOrderTrackStatus] = useState<Record<string, { tag: string; label: string; bg: string; color: string; lastUpdate: string }>>({});
+  const [checkingOrders, setCheckingOrders] = useState<Set<string>>(new Set());
 
   // Auto-refresh + sync protection
   const lastStatusChangeAt = useRef<number>(0);
@@ -410,6 +442,9 @@ function AdminDashboardContent() {
   const openOrderDetail = async (orderId: string) => {
     setSelectedOrder(null);
     setTrackingInput("");
+    setTrackData(null);
+    setTrackError(null);
+    setTrackLoading(false);
     setOrderDetailLoading(true);
     try {
       const res = await fetch(`/api/orders?session_id=${orderId}`);
@@ -450,10 +485,67 @@ function AdminDashboardContent() {
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, orderStatus: "shipped", trackingNumber: trackingInput.trim() } : o));
         if (selectedOrder?.id === orderId) setSelectedOrder(prev => prev ? { ...prev, orderStatus: "shipped", trackingNumber: trackingInput.trim() } : null);
         lastStatusChangeAt.current = Date.now();
+        // Auto-register with AfterShip
+        const method = selectedOrder?.shippingMethod || orders.find(o => o.id === orderId)?.shippingMethod || null;
+        fetch("/api/tracking", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trackingNumber: trackingInput.trim(), shippingMethod: method, orderId }),
+        }).catch(() => {});
       } else alert((await res.json()).error || "Erreur");
     } catch { alert("Erreur de connexion."); }
     finally { setSavingTracking(false); }
   };
+
+  const handleCheckTracking = async (orderId: string, trackingNumber: string, shippingMethod: string | null, isModal = false) => {
+    setTrackError(null);
+    if (isModal) {
+      setTrackLoading(true);
+      setTrackData(null);
+    } else {
+      setCheckingOrders(prev => new Set(prev).add(orderId));
+    }
+    try {
+      const params = new URLSearchParams({ tracking_number: trackingNumber });
+      if (shippingMethod) params.set("shipping_method", shippingMethod);
+      const res = await fetch(`/api/tracking?${params}`);
+      const data = await res.json();
+      if (res.ok && data.tracking) {
+        const t = data.tracking;
+        if (isModal) {
+          setTrackData(t);
+        }
+        // Update list view status
+        setOrderTrackStatus(prev => ({
+          ...prev,
+          [orderId]: { tag: t.tag, label: t.label, bg: t.bg, color: t.color, lastUpdate: t.lastUpdate },
+        }));
+        // Auto-update to "delivered" if AfterShip says so
+        if (t.tag === "Delivered") {
+          setOrders(prev => prev.map(o => o.id === orderId ? { ...o, orderStatus: "delivered" } : o));
+          if (selectedOrder?.id === orderId) setSelectedOrder(prev => prev ? { ...prev, orderStatus: "delivered" } : null);
+        }
+      } else {
+        if (isModal) setTrackError(data.error || "Aucun suivi trouvé.");
+      }
+    } catch {
+      if (isModal) setTrackError("Erreur de connexion.");
+    } finally {
+      if (isModal) setTrackLoading(false);
+      else setCheckingOrders(prev => { const n = new Set(prev); n.delete(orderId); return n; });
+    }
+  };
+
+  const handleCheckTrackingModal = async () => {
+    if (!selectedOrder?.trackingNumber) return;
+    await handleCheckTracking(selectedOrder.id, selectedOrder.trackingNumber, selectedOrder.shippingMethod, true);
+  };
+
+  // Auto-check tracking when opening modal if tracking exists
+  useEffect(() => {
+    if (selectedOrder?.trackingNumber && !trackData && !trackLoading) {
+      handleCheckTracking(selectedOrder.id, selectedOrder.trackingNumber, selectedOrder.shippingMethod, true);
+    }
+  }, [selectedOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const markNotificationRead = (notifId: string) => {
     setNotifications(prev => {
@@ -884,11 +976,29 @@ function AdminDashboardContent() {
                             </td>
                             <td className="px-5 py-3.5">
                               {order.trackingNumber ? (
-                                <a href={trackingUrl || "#"} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-blue-600 hover:text-blue-700 hover:underline">
-                                  {order.trackingNumber.length > 15 ? order.trackingNumber.slice(0, 15) + "..." : order.trackingNumber}
-                                  <ExternalLinkIcon className="w-3 h-3" />
-                                </a>
+                                <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                                  <a href={trackingUrl || "#"} target="_blank" rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+                                    {order.trackingNumber.length > 12 ? order.trackingNumber.slice(0, 12) + "..." : order.trackingNumber}
+                                    <ExternalLinkIcon className="w-3 h-3" />
+                                  </a>
+                                  <button
+                                    onClick={() => handleCheckTracking(order.id, order.trackingNumber!, order.shippingMethod)}
+                                    disabled={checkingOrders.has(order.id)}
+                                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40"
+                                    title="Vérifier le statut en temps réel">
+                                    {checkingOrders.has(order.id) ? (
+                                      <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                                    ) : (
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" /></svg>
+                                    )}
+                                  </button>
+                                  {orderTrackStatus[order.id] && (
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${orderTrackStatus[order.id].bg} ${orderTrackStatus[order.id].color}`}>
+                                      {orderTrackStatus[order.id].label}
+                                    </span>
+                                  )}
+                                </div>
                               ) : <span className="text-xs text-gray-300">—</span>}
                             </td>
                             <td className="px-5 py-3.5">
@@ -950,7 +1060,24 @@ function AdminDashboardContent() {
                         <div className="flex items-center gap-2 flex-wrap">
                           {order.shippingMethod && <span className="text-[9px] font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">{order.shippingMethod}</span>}
                           {order.trackingNumber && (
-                            <span className="text-[9px] font-mono text-blue-600 font-semibold truncate max-w-[160px]">{order.trackingNumber}</span>
+                            <span className="text-[9px] font-mono text-blue-600 font-semibold truncate max-w-[120px]">{order.trackingNumber}</span>
+                          )}
+                          {order.trackingNumber && (
+                            <button
+                              onClick={e => { e.stopPropagation(); handleCheckTracking(order.id, order.trackingNumber!, order.shippingMethod); }}
+                              disabled={checkingOrders.has(order.id)}
+                              className="text-[9px] font-semibold text-gray-400 hover:text-blue-600 flex items-center gap-0.5">
+                              {checkingOrders.has(order.id) ? (
+                                <div className="w-2.5 h-2.5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                              ) : (
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" /></svg>
+                              )}
+                            </button>
+                          )}
+                          {orderTrackStatus[order.id] && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${orderTrackStatus[order.id].bg} ${orderTrackStatus[order.id].color}`}>
+                              {orderTrackStatus[order.id].label}
+                            </span>
                           )}
                         </div>
                       </button>
@@ -1067,26 +1194,98 @@ function AdminDashboardContent() {
               {/* Tracking number */}
               {(selectedOrder.orderStatus === "shipped" || selectedOrder.orderStatus === "delivered") && (
                 <div className={`rounded-xl border p-4 ${selectedOrder.trackingNumber ? "border-blue-200 bg-blue-50/30" : "border-amber-200 bg-amber-50/30"}`}>
-                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Numero de suivi</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Numero de suivi</h3>
+                    {selectedOrder.trackingNumber && (
+                      <button onClick={handleCheckTrackingModal} disabled={trackLoading}
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50">
+                        {trackLoading ? (
+                          <div className="w-3 h-3 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin" />
+                        ) : (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" /></svg>
+                        )}
+                        Actualiser
+                      </button>
+                    )}
+                  </div>
                   {selectedOrder.trackingNumber ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{detectCarrierLabel(selectedOrder.shippingMethod)}</span>
                         <span className="font-mono text-xs font-bold text-gray-900">{selectedOrder.trackingNumber}</span>
+                        {trackData && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${trackData.bg} ${trackData.color}`}>
+                            {trackData.label}
+                          </span>
+                        )}
                       </div>
-                      {getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber) && (
-                        <a href={getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber)!} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
-                          Suivre le colis
-                        </a>
+                      {trackData && trackData.tag === "Delivered" && trackData.signedBy && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                          <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <span className="text-[11px] text-emerald-700 font-medium">Signé par : {trackData.signedBy}</span>
+                        </div>
+                      )}
+                      {trackError && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
+                          <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                          <span className="text-[11px] text-red-600">{trackError}</span>
+                        </div>
+                      )}
+                      {/* Live tracking timeline */}
+                      {trackData && trackData.checkpoints.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200/60">
+                          <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5">Historique du suivi</h4>
+                          <div className="relative space-y-0">
+                            {trackData.checkpoints.map((cp, idx) => {
+                              const isFirst = idx === 0;
+                              const isLast = idx === trackData.checkpoints.length - 1;
+                              const isActive = isFirst;
+                              return (
+                                <div key={idx} className="relative flex gap-3 pb-3 last:pb-0">
+                                  {/* Dot + line */}
+                                  <div className="flex flex-col items-center">
+                                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ring-2 ring-white ${isActive ? "bg-blue-500" : "bg-gray-300"}`} />
+                                    {!isLast && <div className={`w-0.5 flex-1 min-h-[24px] ${isActive ? "bg-blue-200" : "bg-gray-200"}`} />}
+                                  </div>
+                                  {/* Content */}
+                                  <div className="flex-1 min-w-0 -mt-0.5">
+                                    <p className={`text-[11px] font-medium ${isActive ? "text-gray-900" : "text-gray-600"}`}>{cp.message || cp.tag}</p>
+                                    {cp.location && <p className="text-[10px] text-gray-400 mt-0.5">{cp.location}</p>}
+                                    <p className="text-[9px] text-gray-400 mt-0.5">
+                                      {cp.time ? new Date(cp.time).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {trackData.lastUpdate && (
+                            <p className="text-[9px] text-gray-400 mt-2">Dernière maj : {new Date(trackData.lastUpdate).toLocaleString("fr-FR")}</p>
+                          )}
+                        </div>
+                      )}
+                      {trackLoading && !trackData && (
+                        <div className="flex items-center gap-2 py-4 justify-center">
+                          <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                          <span className="text-[11px] text-gray-400">Verification du statut en cours...</span>
+                        </div>
+                      )}
+                      {!trackLoading && !trackData && !trackError && (
+                        <p className="text-[10px] text-gray-400 italic">Cliquez sur "Actualiser" pour vérifier le statut en temps réel.</p>
                       )}
                       <div className="flex items-center gap-2 pt-1">
+                        {getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber) && (
+                          <a href={getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber)!} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200 transition-colors">
+                            <ExternalLinkIcon className="w-3 h-3" />
+                            Suivre le colis
+                          </a>
+                        )}
                         <input type="text" value={trackingInput} onChange={e => setTrackingInput(e.target.value)}
                           placeholder="Modifier le numero..."
                           className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300" />
                         <button onClick={() => handleSaveTrackingNumber(selectedOrder.id)} disabled={savingTracking || !trackingInput.trim()}
-                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200 disabled:opacity-50 transition-colors">
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200 disabled:opacity-50 transition-colors whitespace-nowrap">
                           {savingTracking ? "..." : "Mettre a jour"}
                         </button>
                       </div>

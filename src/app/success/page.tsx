@@ -59,17 +59,60 @@ function TrackingBlock({ method, number }: { method: string | null; number: stri
     ? `https://www.chronopost.fr/tracking-cargo?listeNumerosLT=${encodeURIComponent(number)}`
     : `https://www.laposte.fr/outils/suivre-vos-envois?code=${encodeURIComponent(number)}`;
 
+  const [trackData, setTrackData] = useState<{
+    tag: string; label: string; bg: string; color: string;
+    lastUpdate: string; checkpoints: { time: string; location: string; tag: string; message: string }[];
+    signedBy: string | null;
+  } | null>(null);
+  const [trackLoading, setTrackLoading] = useState(true);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ tracking_number: number });
+    if (method) params.set("shipping_method", method);
+    fetch(`/api/tracking?${params}`)
+      .then(r => r.json())
+      .then(data => { if (data.tracking) setTrackData(data.tracking); })
+      .catch(() => {})
+      .finally(() => setTrackLoading(false));
+  }, [number, method]);
+
   return (
     <>
       <div className="border-t border-gray-100" />
       <div className="p-4 sm:p-5">
-        <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Suivi de livraison</h2>
+        <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Suivi de livraison</h2>
+
+        {/* Live status badge */}
+        {trackLoading && (
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-3.5 h-3.5 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+            <span className="text-[11px] text-gray-400">Verification du statut...</span>
+          </div>
+        )}
+        {trackData && !trackLoading && (
+          <div className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg mb-3 ${trackData.bg} ${trackData.color}`}>
+            <span className={`w-2 h-2 rounded-full ${trackData.tag === "Delivered" ? "bg-emerald-500" : trackData.tag === "InTransit" || trackData.tag === "OutForDelivery" ? "bg-blue-500 animate-pulse" : "bg-gray-400"}`} />
+            {trackData.label}
+          </div>
+        )}
+        {!trackData && !trackLoading && (
+          <div className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg mb-3 bg-blue-50 text-blue-700">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            Expédié
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
           <div className="flex-1">
             <p className="font-mono text-sm font-bold text-gray-900">{number}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">
-              {method || "Transporteur"} — Votre colis est en route
+              {method || "Transporteur"}
             </p>
+            {trackData?.lastUpdate && (
+              <p className="text-[9px] text-gray-400 mt-0.5">
+                Dernière maj : {new Date(trackData.lastUpdate).toLocaleString("fr-FR")}
+              </p>
+            )}
           </div>
           <a href={trackingUrl} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl transition-colors min-h-[44px] flex-shrink-0">
@@ -79,6 +122,27 @@ function TrackingBlock({ method, number }: { method: string | null; number: stri
             Suivre
           </a>
         </div>
+
+        {/* Customer-facing tracking timeline (last 3 events) */}
+        {trackData && trackData.checkpoints.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-gray-100">
+            {trackData.checkpoints.slice(0, 3).map((cp, idx) => (
+              <div key={idx} className="flex gap-3 pb-2.5 last:pb-0">
+                <div className="flex flex-col items-center">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${idx === 0 ? "bg-blue-500" : "bg-gray-300"}`} />
+                  {idx < Math.min(trackData.checkpoints.length, 3) - 1 && <div className={`w-0.5 flex-1 min-h-[16px] ${idx === 0 ? "bg-blue-200" : "bg-gray-200"}`} />}
+                </div>
+                <div className="flex-1 min-w-0 -mt-0.5">
+                  <p className={`text-[11px] font-medium ${idx === 0 ? "text-gray-900" : "text-gray-500"}`}>{cp.message || cp.tag}</p>
+                  {cp.location && <p className="text-[10px] text-gray-400">{cp.location}</p>}
+                  <p className="text-[9px] text-gray-400">
+                    {cp.time ? new Date(cp.time).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );
