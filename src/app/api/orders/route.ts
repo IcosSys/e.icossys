@@ -2,38 +2,49 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 
-interface ShippingAddress {
+// --- Types ---
+
+interface AddressData {
   line1: string | null;
   line2: string | null;
   city: string | null;
   state: string | null;
-  postal_code?: string;
-  country?: string;
+  postal_code: string | null;
+  country: string | null;
 }
 
 interface RawSession {
   shipping_details?: {
-    address?: ShippingAddress | null;
+    address?: AddressData | null;
+    name?: string | null;
+    phone?: string | null;
+    carrier?: string | null;
+    tracking_number?: string | null;
   } | null;
   [key: string]: unknown;
 }
 
-function extractShipping(session: Stripe.Checkout.Session | RawSession): { city: string | null; country: string | null } {
-  const raw = session as RawSession;
-  const addr = raw.shipping_details?.address;
-  return {
-    city: addr?.city || null,
-    country: addr?.country || null,
-  };
+interface OrderListItem {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  customerEmail: string | null;
+  customerName: string | null;
+  paymentStatus: string;
+  orderStatus: string;
+  created: number;
+  productName: string | null;
+  shippingCity: string | null;
+  shippingCountry: string | null;
+  shippingName: string | null;
 }
 
-function formatAddress(addr: ShippingAddress | null | undefined): {
-  line1: string | null;
-  line2: string | null;
-  city: string | null;
-  state: string | null;
-  postalCode: string | null;
-  country: string | null;
+// --- Helpers ---
+
+function fmtAddr(addr: AddressData | null | undefined): {
+  line1: string | null; line2: string | null; city: string | null;
+  state: string | null; postalCode: string | null; country: string | null;
 } | null {
   if (!addr) return null;
   return {
@@ -46,13 +57,17 @@ function formatAddress(addr: ShippingAddress | null | undefined): {
   };
 }
 
-// GET /api/orders?session_id=xxx → détails d'une commande
-// GET /api/orders?list=true → liste des dernières commandes
+function getOrderStatus(session: Stripe.Checkout.Session): string {
+  const meta = session.metadata as Record<string, string> | null;
+  if (meta?.order_status) return meta.order_status;
+  return session.payment_status === "paid" ? "paid" : "pending";
+}
+
+// --- GET: list or single ---
+
 export async function GET(req: NextRequest) {
   const stripe = await getStripe();
-
   if (!stripe) {
-    console.error("[Orders] Stripe non configuré — cookie absent.");
     return NextResponse.json({ error: "Stripe non configuré." }, { status: 400 });
   }
 
@@ -61,8 +76,9 @@ export async function GET(req: NextRequest) {
   const list = searchParams.get("list");
 
   try {
+    // --- Single order ---
     if (sessionId) {
-      console.log(`[Orders] Récupération session: ${sessionId}`);
+      console.log(`[Orders] Détail: ${sessionId}`);
       const session = await stripe.checkout.sessions.retrieve(sessionId, {
         expand: ["line_items.data.price.product"],
       });
@@ -74,7 +90,7 @@ export async function GET(req: NextRequest) {
           : session.line_items?.data?.[0]?.description || null;
 
       const raw = session as unknown as RawSession;
-      const shippingAddr = (raw.shipping_details?.address as ShippingAddress | undefined) ?? null;
+      const shippingAddr = raw.shipping_details?.address as AddressData | undefined;
       const billing = session.customer_details?.address;
 
       return NextResponse.json({
@@ -83,41 +99,47 @@ export async function GET(req: NextRequest) {
         currency: session.currency,
         status: session.status,
         paymentStatus: session.payment_status,
+        orderStatus: getOrderStatus(session),
         created: session.created,
         customerEmail: session.customer_details?.email || null,
         customerName: session.customer_details?.name || null,
         customerPhone: session.customer_details?.phone || null,
-        shippingAddress: formatAddress(shippingAddr),
-        billingAddress: formatAddress(billing as ShippingAddress | null),
+        shippingName: raw.shipping_details?.name || null,
+        shippingAddress: fmtAddr(shippingAddr),
+        billingAddress: fmtAddr(billing as AddressData | null),
         productName,
       });
     }
 
+    // --- Order list ---
     if (list) {
-      console.log("[Orders] Liste des dernières commandes.");
+      console.log("[Orders] Liste des commandes.");
       const sessions = await stripe.checkout.sessions.list({
-        limit: 20,
+        limit: 50,
         status: "complete",
       });
 
-      const orders = sessions.data.map((s) => {
-        const { city, country } = extractShipping(s);
+      const orders: OrderListItem[] = sessions.data.map((s) => {
+        const raw = s as unknown as RawSession;
+        const addr = raw.shipping_details?.address;
         return {
           id: s.id,
-          amount: s.amount_total,
-          currency: s.currency,
-          status: s.status,
+          amount: s.amount_total ?? 0,
+          currency: s.currency ?? "eur",
+          status: s.status ?? "complete",
           customerEmail: s.customer_details?.email || null,
           customerName: s.customer_details?.name || null,
           paymentStatus: s.payment_status,
+          orderStatus: getOrderStatus(s),
           created: s.created,
           productName: null,
-          shippingCity: city,
-          shippingCountry: country,
+          shippingCity: addr?.city || null,
+          shippingCountry: addr?.country || null,
+          shippingName: raw.shipping_details?.name || null,
         };
       });
 
-      console.log(`[Orders] ${orders.length} commande(s) trouvée(s).`);
+      console.log(`[Orders] ${orders.length} commande(s).`);
       return NextResponse.json({ orders });
     }
 

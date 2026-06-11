@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         {
           price_data: {
             currency: "eur",
-            unit_amount: price, // en centimes
+            unit_amount: price,
             product_data: {
               name: productName,
             },
@@ -38,18 +38,35 @@ export async function POST(req: NextRequest) {
           quantity,
         },
       ],
-      success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/cancel`,
+      // Collecte client
       customer_creation: "always",
       billing_address_collection: "required",
-      shipping_address_collection: {
-        allowed_countries: ["FR", "BE", "CH", "LU", "MC"],
-      },
       phone_number_collection: {
         enabled: true,
       },
+      // Livraison — shipping_options est OBLIGATOIRE pour que Stripe affiche
+      // le formulaire d'adresse de livraison
+      shipping_address_collection: {
+        allowed_countries: ["FR", "BE", "CH", "LU", "MC", "DE", "IT", "ES", "NL", "AT", "PT"],
+      },
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: 0, currency: "eur" },
+            display_name: "Livraison standard",
+            delivery_estimate: {
+              minimum: { unit: "business_day", value: 3 },
+              maximum: { unit: "business_day", value: 7 },
+            },
+          },
+        },
+      ],
+      success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/cancel`,
       metadata: {
         source: "e-icossys",
+        order_status: "paid",
       },
       custom_text: {
         submit: {
@@ -58,11 +75,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(`[Checkout] Session créée avec succès: ${session.id} → ${session.url}`);
+    console.log(`[Checkout] Session créée: ${session.id} → ${session.url}`);
     return NextResponse.json({ url: session.url, sessionId: session.id });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erreur Stripe";
-    console.error(`[Checkout] Échec création session: ${message}`);
+    console.error(`[Checkout] Échec: ${message}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
