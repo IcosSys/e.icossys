@@ -7,7 +7,7 @@ export default function RetoursPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200/60 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center">
               <span className="text-white text-xs font-bold tracking-tight">eI</span>
@@ -28,7 +28,7 @@ export default function RetoursPage() {
         <div className="max-w-3xl mx-auto">
           {/* Page title */}
           <div className="mb-8">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
               Politique de Retour et de R&eacute;tractation
             </h2>
             <p className="text-sm text-gray-500">
@@ -38,8 +38,8 @@ export default function RetoursPage() {
 
           {/* Highlighted info box */}
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-8">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -58,7 +58,7 @@ export default function RetoursPage() {
           </div>
 
           {/* Section 1 — Droit de rétractation */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h3 className="text-sm font-bold text-gray-900 mb-2">
               1. Droit de r&eacute;tractation
             </h3>
@@ -96,7 +96,7 @@ export default function RetoursPage() {
           </section>
 
           {/* Section 2 — Conditions de retour */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h3 className="text-sm font-bold text-gray-900 mb-2">
               2. Conditions de retour
             </h3>
@@ -154,7 +154,7 @@ export default function RetoursPage() {
           </section>
 
           {/* Section 3 — Exclusions au droit de rétractation */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h3 className="text-sm font-bold text-gray-900 mb-2">
               3. Exclusions au droit de r&eacute;tractation
             </h3>
@@ -209,7 +209,7 @@ export default function RetoursPage() {
           </section>
 
           {/* Section 4 — Procédure de retour */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h3 className="text-sm font-bold text-gray-900 mb-2">
               4. Proc&eacute;dure de retour
             </h3>
@@ -315,7 +315,7 @@ export default function RetoursPage() {
           </section>
 
           {/* Section 5 — Remboursement */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h3 className="text-sm font-bold text-gray-900 mb-2">
               5. Remboursement
             </h3>
@@ -355,7 +355,7 @@ export default function RetoursPage() {
           </section>
 
           {/* Section 6 — Échanges */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h3 className="text-sm font-bold text-gray-900 mb-2">
               6. &Eacute;changes
             </h3>
@@ -401,7 +401,7 @@ export default function RetoursPage() {
           </section>
 
           {/* Section 7 — Articles défectueux */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h3 className="text-sm font-bold text-gray-900 mb-2">
               7. Articles d&eacute;fectueux — Garantie de conformit&eacute;
             </h3>
@@ -528,9 +528,9 @@ export default function RetoursPage() {
             </div>
             <span className="text-xs text-gray-400">e.IcosSys</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions g&eacute;n&eacute;rales</Link>
-            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions</Link>
+            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Retours</Link>
             <Link href="/mentions-legales" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Mentions l&eacute;gales</Link>
             <span className="text-[11px] text-gray-200">&middot;</span>
             <p className="text-[11px] text-gray-300">Paiement s&eacute;curis&eacute; par Stripe</p>

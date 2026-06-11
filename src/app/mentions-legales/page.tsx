@@ -29,7 +29,7 @@ export default function MentionsLegalesPage() {
         <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-10 sm:py-16">
           {/* Page Title */}
           <div className="mb-10">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
               Mentions L&eacute;gales
             </h1>
             <p className="text-sm text-gray-400 mt-2">
@@ -38,7 +38,7 @@ export default function MentionsLegalesPage() {
           </div>
 
           {/* 1. Éditeur du site */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               1 — &Eacute;diteur du site
             </h2>
@@ -65,7 +65,7 @@ export default function MentionsLegalesPage() {
           </section>
 
           {/* 2. Directeur de la publication */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               2 — Directeur de la publication
             </h2>
@@ -83,7 +83,7 @@ export default function MentionsLegalesPage() {
           </section>
 
           {/* 3. Hébergement */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               3 — H&eacute;bergement
             </h2>
@@ -104,7 +104,7 @@ export default function MentionsLegalesPage() {
           </section>
 
           {/* 4. Propriété intellectuelle */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               4 — Propri&eacute;t&eacute; intellectuelle
             </h2>
@@ -125,7 +125,7 @@ export default function MentionsLegalesPage() {
           </section>
 
           {/* 5. Limitation de responsabilité */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               5 — Limitation de responsabilit&eacute;
             </h2>
@@ -146,7 +146,7 @@ export default function MentionsLegalesPage() {
           </section>
 
           {/* 6. Liens hypertextes */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               6 — Liens hypertextes
             </h2>
@@ -164,7 +164,7 @@ export default function MentionsLegalesPage() {
           </section>
 
           {/* 7. Cookies et technologie de suivi */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               7 — Cookies et technologie de suivi
             </h2>
@@ -188,7 +188,7 @@ export default function MentionsLegalesPage() {
           </section>
 
           {/* 8. Données personnelles */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               8 — Donn&eacute;es personnelles
             </h2>
@@ -212,7 +212,7 @@ export default function MentionsLegalesPage() {
           </section>
 
           {/* 9. Médiation des litiges */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               9 — M&eacute;diation des litiges
             </h2>
@@ -272,9 +272,9 @@ export default function MentionsLegalesPage() {
             </div>
             <span className="text-xs text-gray-400">e.IcosSys</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions g&eacute;n&eacute;rales</Link>
-            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions</Link>
+            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Retours</Link>
             <Link href="/mentions-legales" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Mentions l&eacute;gales</Link>
             <span className="text-[11px] text-gray-200">&middot;</span>
             <p className="text-[11px] text-gray-300">Paiement s&eacute;curis&eacute; par Stripe</p>

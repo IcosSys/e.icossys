@@ -95,7 +95,7 @@ export default function Home() {
 
       {/* Hero */}
       <section className="relative bg-gradient-to-b from-gray-50 to-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-10 sm:pb-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-6 sm:pb-16">
           <div className="max-w-2xl">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight leading-tight">
               Découvrez nos <span className="text-gray-500">produits</span>
@@ -120,7 +120,7 @@ export default function Home() {
             ))}
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-12 sm:py-20">
             <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0l-3-3m3 3l3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
@@ -190,9 +190,9 @@ export default function Home() {
             </div>
             <span className="text-xs text-gray-400">e.IcosSys</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions générales</Link>
-            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions</Link>
+            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Retours</Link>
             <Link href="/mentions-legales" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Mentions légales</Link>
             <span className="text-[11px] text-gray-200">·</span>
             <p className="text-[11px] text-gray-300">Paiement sécurisé par Stripe</p>

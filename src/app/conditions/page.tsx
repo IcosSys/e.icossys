@@ -29,7 +29,7 @@ export default function ConditionsPage() {
         <div className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-10 sm:py-16">
           {/* Page Title */}
           <div className="mb-10">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
               Conditions Générales de Vente
             </h1>
             <p className="text-sm text-gray-400 mt-2">
@@ -38,7 +38,7 @@ export default function ConditionsPage() {
           </div>
 
           {/* 1. Éditeur du site */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               1 — Éditeur du site
             </h2>
@@ -71,7 +71,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 2. Objet */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               2 — Objet
             </h2>
@@ -92,7 +92,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 3. Prix */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               3 — Prix
             </h2>
@@ -113,7 +113,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 4. Commande */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               4 — Commande
             </h2>
@@ -137,7 +137,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 5. Paiement */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               5 — Paiement
             </h2>
@@ -161,7 +161,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 6. Livraison */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               6 — Livraison
             </h2>
@@ -188,7 +188,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 7. Droit de rétractation */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               7 — Droit de rétractation
             </h2>
@@ -212,7 +212,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 8. Retours et remboursements */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               8 — Retours et remboursements
             </h2>
@@ -236,7 +236,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 9. Responsabilité */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               9 — Responsabilité
             </h2>
@@ -263,7 +263,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 10. Données personnelles */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               10 — Données personnelles
             </h2>
@@ -287,7 +287,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 11. Litiges */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               11 — Litiges
             </h2>
@@ -311,7 +311,7 @@ export default function ConditionsPage() {
           </section>
 
           {/* 12. Modification des CGV */}
-          <section className="border-b border-gray-100 pb-6 mb-6">
+          <section className="border-b border-gray-100 pb-5 mb-5 sm:pb-6 sm:mb-6">
             <h2 className="text-sm font-bold text-gray-900 mb-2">
               12 — Modification des CGV
             </h2>
@@ -347,9 +347,9 @@ export default function ConditionsPage() {
             </div>
             <span className="text-xs text-gray-400">e.IcosSys</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions générales</Link>
-            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions</Link>
+            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Retours</Link>
             <Link href="/mentions-legales" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Mentions légales</Link>
             <span className="text-[11px] text-gray-200">·</span>
             <p className="text-[11px] text-gray-300">Paiement sécurisé par Stripe</p>

@@ -35,7 +35,7 @@ function ArrowLeftIcon() {
 
 function CartItemRow({ item, onUpdateQty, onRemove }: { item: CartItem; onUpdateQty: (id: string, q: number) => void; onRemove: (id: string) => void }) {
   return (
-    <div className="flex gap-4 py-5 border-b border-gray-100 last:border-0">
+    <div className="flex gap-3 sm:gap-4 py-5 border-b border-gray-100 last:border-0">
       {/* Image */}
       <Link href={`/produit/${item.productId}`} className="flex-shrink-0">
         <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden">
@@ -62,7 +62,7 @@ function CartItemRow({ item, onUpdateQty, onRemove }: { item: CartItem; onUpdate
           </div>
           <button
             onClick={() => onRemove(item.productId)}
-            className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
+            className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
             title="Supprimer"
           >
             <TrashIcon />
@@ -74,14 +74,14 @@ function CartItemRow({ item, onUpdateQty, onRemove }: { item: CartItem; onUpdate
           <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
             <button
               onClick={() => onUpdateQty(item.productId, item.quantity - 1)}
-              className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-colors text-sm"
+              className="w-10 h-10 sm:w-9 sm:h-9 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-colors text-sm"
             >
               −
             </button>
             <span className="w-10 text-center text-sm font-medium text-gray-900">{item.quantity}</span>
             <button
               onClick={() => onUpdateQty(item.productId, item.quantity + 1)}
-              className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-colors text-sm"
+              className="w-10 h-10 sm:w-9 sm:h-9 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-colors text-sm"
             >
               +
             </button>
@@ -160,7 +160,7 @@ export default function PanierPage() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8">
         {items.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-12 sm:py-20">
             <div className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-5">
               <CartIcon className="w-10 h-10 text-gray-300" />
             </div>
@@ -245,9 +245,9 @@ export default function PanierPage() {
             </div>
             <span className="text-xs text-gray-400">e.IcosSys</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions générales</Link>
-            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions</Link>
+            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Retours</Link>
             <Link href="/mentions-legales" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Mentions légales</Link>
             <span className="text-[11px] text-gray-200">·</span>
             <p className="text-[11px] text-gray-300">Paiement sécurisé par Stripe</p>

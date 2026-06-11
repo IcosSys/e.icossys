@@ -88,7 +88,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-14">
             <div className="aspect-square bg-gray-100 rounded-2xl animate-pulse" />
             <div className="space-y-4">
               <div className="h-6 bg-gray-100 rounded-lg w-1/3 animate-pulse" />
@@ -162,8 +162,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
       {/* Product */}
       <main className="flex-1">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-14">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 md:py-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 lg:gap-14">
             {/* Images */}
             <div className="space-y-3">
               {/* Main Image */}
@@ -186,7 +186,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
               {/* Thumbnails */}
               {allImages.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1">
                   {allImages.map((img, idx) => {
                     const realIdx = idx === 0 ? -1 : idx - 1;
                     const isSelected = selectedImage === realIdx;
@@ -320,9 +320,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             </div>
             <span className="text-xs text-gray-400">e.IcosSys</span>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions générales</Link>
-            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions</Link>
+            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Retours</Link>
             <Link href="/mentions-legales" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Mentions légales</Link>
             <span className="text-[11px] text-gray-200">·</span>
             <p className="text-[11px] text-gray-300">Paiement sécurisé par Stripe</p>

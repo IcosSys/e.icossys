@@ -954,7 +954,7 @@ function AdminDashboardContent() {
             </div>
             <div>
               <h1 className="text-sm sm:text-base font-bold text-gray-900 leading-tight">e.IcosSys</h1>
-              <span className="text-[10px] text-gray-400 font-medium">Administration</span>
+              <span className="hidden sm:inline text-[10px] text-gray-400 font-medium">Administration</span>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -1023,7 +1023,10 @@ function AdminDashboardContent() {
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
               <span className="hidden sm:inline">Voir la boutique</span>
             </a>
-            <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-red-500 transition-colors px-3 py-2 rounded-lg hover:bg-red-50 font-medium">Déconnexion</button>
+            <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-red-500 transition-colors px-3 py-2 rounded-lg hover:bg-red-50 font-medium flex items-center gap-1.5 min-h-[44px]">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
+              <span className="hidden sm:inline">Déconnexion</span>
+            </button>
           </div>
         </div>
       </header>
@@ -1224,40 +1227,42 @@ function AdminDashboardContent() {
               <div className="space-y-3">
                 {shippingOpts.map((opt, idx) => (
                   <div key={opt.id} className={`rounded-xl border p-4 transition-colors ${opt.active ? "border-gray-200 bg-white" : "border-gray-100 bg-gray-50/50 opacity-60"}`}>
-                    <div className="flex items-start gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                      <div className="flex items-center gap-3 sm:flex-col sm:items-start">
                       <button onClick={() => updateShipping(idx, { active: !opt.active })}
-                        className="relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 mt-1 focus:outline-none"
+                        className="relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 focus:outline-none"
                         style={{ backgroundColor: opt.active ? "#7c3aed" : "#d1d5db" }}>
                         <span className={`absolute top-[3px] left-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${opt.active ? "translate-x-[18px]" : ""}`} />
                       </button>
+                      <button onClick={() => removeShipping(idx)}
+                        className="sm:mt-1 w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 ml-auto sm:ml-0 min-h-[44px] sm:min-h-0">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                      </button>
+                      </div>
                       <div className="flex-1 min-w-0 space-y-3">
                         <div>
                           <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Intitulé</label>
                           <input type="text" value={opt.name} onChange={e => updateShipping(idx, { name: e.target.value, id: slugify(e.target.value) || opt.id })}
-                            className="w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400" />
+                            className="w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 min-h-[44px]" />
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Prix (EUR)</label>
                             <input type="number" step="0.01" min="0" value={(opt.price / 100).toFixed(2)} onChange={e => updateShipping(idx, { price: Math.round(parseFloat(e.target.value) * 100) || 0 })}
-                              className="w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400" />
+                              className="w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 min-h-[44px]" />
                           </div>
                           <div>
                             <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Délai (jours ouvrés)</label>
                             <div className="flex items-center gap-2">
                               <input type="number" min="1" max="30" value={opt.minDays} onChange={e => updateShipping(idx, { minDays: parseInt(e.target.value) || 1 })}
-                                className="flex-1 w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400" />
+                                className="flex-1 w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 min-h-[44px]" />
                               <span className="text-xs text-gray-400 font-medium">à</span>
                               <input type="number" min={opt.minDays} max="60" value={opt.maxDays} onChange={e => updateShipping(idx, { maxDays: Math.max(parseInt(e.target.value) || 1, opt.minDays) })}
-                                className="flex-1 w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400" />
+                                className="flex-1 w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 min-h-[44px]" />
                             </div>
                           </div>
                         </div>
                       </div>
-                      <button onClick={() => removeShipping(idx)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 mt-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -1390,41 +1395,42 @@ function AdminDashboardContent() {
               <div className="space-y-2.5">
                 {adminProducts.map(p => (
                   <div key={p.id} className={`rounded-xl border p-3 sm:p-4 transition-colors ${p.active ? "border-gray-200 bg-white" : "border-gray-100 bg-gray-50/50 opacity-60"}`}>
-                    <div className="flex items-center gap-3">
-                      {/* Thumbnail */}
-                      <div className="w-14 h-14 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
-                        {p.mainImage ? (
-                          <img src={p.mainImage} alt={p.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <PackageIcon className="w-5 h-5 text-gray-200" />
-                          </div>
-                        )}
-                      </div>
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-900 truncate">{p.name}</span>
-                          {!p.active && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 uppercase">Inactif</span>}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                      {/* Thumbnail + Info row */}
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
+                          {p.mainImage ? (
+                            <img src={p.mainImage} alt={p.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <PackageIcon className="w-5 h-5 text-gray-200" />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-sm font-bold text-gray-900">{new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(p.price / 100)}</span>
-                          {p.images.length > 0 && <span className="text-[10px] text-gray-400">{p.images.length + 1} photo{p.images.length > 0 ? "s" : ""}</span>}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900 truncate">{p.name}</span>
+                            {!p.active && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 uppercase">Inactif</span>}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-sm font-bold text-gray-900">{new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(p.price / 100)}</span>
+                            {p.images.length > 0 && <span className="text-[10px] text-gray-400">{p.images.length + 1} photo{p.images.length > 0 ? "s" : ""}</span>}
+                          </div>
                         </div>
                       </div>
                       {/* Actions */}
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-1 flex-shrink-0 sm:ml-0">
                         <button onClick={() => handleToggleProduct(p)}
                           className="relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 focus:outline-none"
                           style={{ backgroundColor: p.active ? "#2563eb" : "#d1d5db" }}>
                           <span className={`absolute top-[3px] left-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${p.active ? "translate-x-[18px]" : ""}`} />
                         </button>
                         <button onClick={() => openProductForm(p)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                          className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors min-h-[44px] sm:min-h-0">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
                         </button>
                         <button onClick={() => handleDeleteProduct(p.id)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                          className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors min-h-[44px] sm:min-h-0">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                         </button>
                       </div>
@@ -1849,20 +1855,20 @@ function AdminDashboardContent() {
                     const isCurrent = selectedOrder.orderStatus === step;
                     const cfg = ORDER_STATUS_CONFIG[step];
                     return (
-                      <div key={step} className="flex-1 flex flex-col items-center gap-1.5">
+                      <div key={step} className="flex-1 flex flex-col items-center gap-1 sm:gap-1.5">
                         <button onClick={() => handleStatusChange(selectedOrder.id, step)} disabled={updatingStatus}
                           className={`w-full flex items-center gap-1 ${idx < STATUS_FLOW.length - 1 ? "flex-col" : ""}`}>
                           <div className={`w-full flex items-center ${idx < STATUS_FLOW.length - 1 ? "" : ""}`}>
                             {idx > 0 && <div className={`h-0.5 flex-1 ${isActive ? "bg-gray-900" : "bg-gray-200"}`} />}
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
+                            <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
                               isCurrent ? "border-gray-900 bg-gray-900 animate-status-glow" : isActive ? "border-gray-900 bg-white" : "border-gray-200 bg-white"
                             }`}>
-                              {isActive && <div className={`w-2.5 h-2.5 rounded-full ${isCurrent ? "bg-white" : "bg-gray-900"}`} />}
+                              {isActive && <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${isCurrent ? "bg-white" : "bg-gray-900"}`} />}
                             </div>
                             {idx < STATUS_FLOW.length - 1 && <div className={`h-0.5 flex-1 ${STATUS_FLOW.indexOf(selectedOrder.orderStatus as any) > idx ? "bg-gray-900" : "bg-gray-200"}`} />}
                           </div>
                         </button>
-                        <span className={`text-[9px] font-semibold ${isCurrent ? "text-gray-900" : isActive ? "text-gray-600" : "text-gray-400"}`}>{cfg.label}</span>
+                        <span className={`text-[8px] sm:text-[9px] font-semibold leading-tight text-center ${isCurrent ? "text-gray-900" : isActive ? "text-gray-600" : "text-gray-400"}`}>{cfg.label}</span>
                       </div>
                     );
                   })}
@@ -1958,30 +1964,30 @@ function AdminDashboardContent() {
                       {!trackLoading && !trackData && !trackError && (
                         <p className="text-[10px] text-gray-400 italic">Cliquez sur "Actualiser" pour vérifier le statut en temps réel via AfterShip (nécessite un plan Pro).</p>
                       )}
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
                         {getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber) && (
                           <a href={getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber)!} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200 transition-colors">
+                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200 transition-colors min-h-[44px]">
                             <ExternalLinkIcon className="w-3 h-3" />
                             Suivre le colis
                           </a>
                         )}
                         <input type="text" value={trackingInput} onChange={e => setTrackingInput(e.target.value)}
                           placeholder="Modifier le numero..."
-                          className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300" />
+                          className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 min-h-[44px]" />
                         <button onClick={() => handleSaveTrackingNumber(selectedOrder.id)} disabled={savingTracking || !trackingInput.trim()}
-                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200 disabled:opacity-50 transition-colors whitespace-nowrap">
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200 disabled:opacity-50 transition-colors whitespace-nowrap min-h-[44px]">
                           {savingTracking ? "..." : "Mettre a jour"}
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                       <input type="text" value={trackingInput} onChange={e => setTrackingInput(e.target.value)}
                         placeholder="Entrez le numero de suivi..."
-                        className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-300" />
+                        className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 min-h-[44px]" />
                       <button onClick={() => handleSaveTrackingNumber(selectedOrder.id)} disabled={savingTracking || !trackingInput.trim()}
-                        className="text-[11px] font-semibold text-white bg-amber-500 hover:bg-amber-600 px-3 py-2 rounded-lg disabled:opacity-50 transition-colors">
+                        className="text-[11px] font-semibold text-white bg-amber-500 hover:bg-amber-600 px-3 py-2 rounded-lg disabled:opacity-50 transition-colors min-h-[44px]">
                         {savingTracking ? "..." : "Enregistrer"}
                       </button>
                     </div>
