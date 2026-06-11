@@ -31,6 +31,7 @@ interface OrderDetails {
   billingAddress: Address | null;
   unitPrice: number | null;
   quantity: number | null;
+  trackingNumber: string | null;
 }
 
 function formatAddress(addr: Address | null): string {
@@ -50,6 +51,37 @@ function fmtDate(ts: number): string {
     day: "numeric", month: "long", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function TrackingBlock({ method, number }: { method: string | null; number: string }) {
+  const m = (method || "").toLowerCase();
+  const trackingUrl = m.includes("chronopost")
+    ? `https://www.chronopost.fr/tracking-cargo?listeNumerosLT=${encodeURIComponent(number)}`
+    : `https://www.laposte.fr/outils/suivre-vos-envois?code=${encodeURIComponent(number)}`;
+
+  return (
+    <>
+      <div className="border-t border-gray-100" />
+      <div className="p-4 sm:p-5">
+        <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Suivi de livraison</h2>
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <p className="font-mono text-sm font-bold text-gray-900">{number}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {method || "Transporteur"} — Votre colis est en route
+            </p>
+          </div>
+          <a href={trackingUrl} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl transition-colors min-h-[44px] flex-shrink-0">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+            Suivre
+          </a>
+        </div>
+      </div>
+    </>
+  );
 }
 
 function SuccessContent() {
@@ -90,10 +122,10 @@ function SuccessContent() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <p className="text-emerald-600 text-lg font-bold mb-2">Paiement reçu !</p>
+          <p className="text-emerald-600 text-lg font-bold mb-2">Paiement recu !</p>
           <p className="text-gray-500 text-sm mb-6">Merci pour votre commande.</p>
           <a href="/" className="inline-block px-6 py-3 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition-colors min-w-[200px] text-center">
-            Retour à la boutique
+            Retour a la boutique
           </a>
         </div>
       </div>
@@ -252,6 +284,9 @@ function SuccessContent() {
                 {formatAddress(order.shippingAddress)}
               </p>
             </div>
+
+            {/* Tracking number */}
+            {order.trackingNumber && <TrackingBlock method={order.shippingMethod} number={order.trackingNumber} />}
 
             {/* Billing address */}
             <div className="border-t border-gray-100" />

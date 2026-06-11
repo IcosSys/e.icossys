@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense, useCallback, useRef } from "react";
+import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from "react";
 
 type StripeMode = "test" | "live";
 
@@ -33,6 +33,7 @@ interface Order {
   shippingCountry: string | null;
   shippingName: string | null;
   shippingMethod: string | null;
+  trackingNumber: string | null;
 }
 
 interface OrderDetail extends Order {
@@ -82,6 +83,32 @@ const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: st
 
 const STATUS_FLOW = ["paid", "processing", "shipped", "delivered"] as const;
 
+const ORDERS_PER_PAGE = 10;
+
+const NOTIF_STORAGE_KEY = "e-icossys-notifications";
+
+// --- Tracking link helpers ---
+
+function getTrackingUrl(method: string | null, trackingNumber: string): string | null {
+  if (!trackingNumber.trim()) return null;
+  const m = (method || "").toLowerCase();
+  if (m.includes("chronopost")) return `https://www.chronopost.fr/tracking-cargo?listeNumerosLT=${encodeURIComponent(trackingNumber)}`;
+  if (m.includes("colissimo") || m.includes("la poste") || m.includes("lettre")) {
+    return `https://www.laposte.fr/outils/suivre-vos-envois?code=${encodeURIComponent(trackingNumber)}`;
+  }
+  // Default: La Poste
+  return `https://www.laposte.fr/outils/suivre-vos-envois?code=${encodeURIComponent(trackingNumber)}`;
+}
+
+function detectCarrierLabel(method: string | null): string {
+  const m = (method || "").toLowerCase();
+  if (m.includes("chronopost")) return "Chronopost";
+  if (m.includes("colissimo")) return "Colissimo";
+  if (m.includes("lettre")) return "La Poste";
+  if (m.includes("mondial")) return "Mondial Relay";
+  return "Transporteur";
+}
+
 // --- Helpers ---
 
 function fmtDate(ts: number): string {
@@ -121,8 +148,23 @@ function BellIcon({ className = "w-5 h-5" }: { className?: string }) {
 function PackageIcon({ className = "w-5 h-5" }: { className?: string }) {
   return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>;
 }
-function TruckIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" /></svg>;
+function SearchIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>;
+}
+function FilterIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>;
+}
+function XIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>;
+}
+function ExternalLinkIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>;
+}
+function ChevronLeftIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>;
+}
+function ChevronRightIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>;
 }
 
 // ==================== MAIN ====================
@@ -148,19 +190,30 @@ function AdminDashboardContent() {
   const [orderDetailLoading, setOrderDetailLoading] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  // Notifications
+  // Search, Filter, Pagination
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [shippingFilter, setShippingFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Notifications (persistent via localStorage)
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [bellRinging, setBellRinging] = useState(false);
   const [toastNotif, setToastNotif] = useState<string | null>(null);
   const prevOrdersRef = useRef<string>("");
   const notifPanelRef = useRef<HTMLDivElement>(null);
+  const notifLoadedRef = useRef(false);
 
   // Shipping config
   const [shippingOpts, setShippingOpts] = useState<ShippingOpt[]>([]);
   const [shippingSaving, setShippingSaving] = useState(false);
   const [shippingLoaded, setShippingLoaded] = useState(false);
+
+  // Tracking number input in modal
+  const [trackingInput, setTrackingInput] = useState("");
+  const [savingTracking, setSavingTracking] = useState(false);
 
   // Auto-refresh + sync protection
   const lastStatusChangeAt = useRef<number>(0);
@@ -168,7 +221,30 @@ function AdminDashboardContent() {
   const detectedMode = keyInput.trim().startsWith("sk_test_") ? "test" as StripeMode
     : keyInput.trim().startsWith("sk_live_") ? "live" as StripeMode : null;
 
-  // Close notif panel on outside click
+  // --- Persistent notifications ---
+
+  const loadNotifications = useCallback(() => {
+    try {
+      const stored = localStorage.getItem(NOTIF_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setNotifications(parsed);
+          notifLoadedRef.current = true;
+        }
+      }
+    } catch {}
+  }, []);
+
+  const saveNotifications = useCallback((notifs: Notification[]) => {
+    try {
+      localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifs.slice(0, 100)));
+    } catch {}
+  }, []);
+
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
+
+  // Close notif panel on outside click (NO auto-mark-read)
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node)) setShowNotifPanel(false);
@@ -196,13 +272,17 @@ function AdminDashboardContent() {
         const oldSet = new Set(oldIds.split(","));
         const fresh = newOrders.filter((o: Order) => !oldSet.has(o.id));
         if (fresh.length > 0) {
-          fresh.forEach((order: Order) => {
-            setNotifications(prev => [{
-              id: order.id, customerName: order.customerName, customerEmail: order.customerEmail,
-              amount: order.amount, currency: order.currency, productName: order.productName,
-              time: Date.now(), read: false,
-            }, ...prev].slice(0, 50));
-            setUnreadCount(prev => prev + 1);
+          setNotifications(prev => {
+            const updated = [
+              ...fresh.map((order: Order) => ({
+                id: order.id, customerName: order.customerName, customerEmail: order.customerEmail,
+                amount: order.amount, currency: order.currency, productName: order.productName,
+                time: Date.now(), read: false,
+              })),
+              ...prev,
+            ].slice(0, 100);
+            saveNotifications(updated);
+            return updated;
           });
           const latest = fresh[0];
           setToastNotif(`${latest.customerName || latest.customerEmail || "Client"} — ${latest.productName || "Commande"} — ${fmtCurrency(latest.amount, latest.currency)}`);
@@ -215,7 +295,7 @@ function AdminDashboardContent() {
       setOrders(newOrders);
     }).catch(() => setOrders([]))
     .finally(() => setOrdersLoading(false));
-  }, []);
+  }, [saveNotifications]);
 
   const fetchShippingConfig = useCallback(() => {
     fetch("/api/shipping/config").then(r => r.json()).then(d => {
@@ -224,6 +304,8 @@ function AdminDashboardContent() {
     }).catch(() => {});
   }, []);
 
+  // Load notifications from localStorage on mount
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
   useEffect(() => { if (stripeStatus?.connected) { fetchOrders(); fetchShippingConfig(); } }, [stripeStatus?.connected, fetchOrders, fetchShippingConfig]);
 
@@ -237,7 +319,55 @@ function AdminDashboardContent() {
     return () => clearInterval(interval);
   }, [stripeStatus?.connected, fetchOrders]);
 
+  // Reset page when search/filter changes
+  useEffect(() => { setCurrentPage(1); }, [searchQuery, statusFilter, shippingFilter]);
+
+  // --- Derived: filtered + paginated orders ---
+
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(o =>
+        (o.customerName || "").toLowerCase().includes(q) ||
+        (o.customerEmail || "").toLowerCase().includes(q) ||
+        (o.productName || "").toLowerCase().includes(q) ||
+        o.id.toLowerCase().includes(q) ||
+        (o.shippingCity || "").toLowerCase().includes(q) ||
+        (o.shippingName || "").toLowerCase().includes(q)
+      );
+    }
+    // Status filter
+    if (statusFilter !== "all") {
+      result = result.filter(o => o.orderStatus === statusFilter);
+    }
+    // Shipping filter
+    if (shippingFilter !== "all") {
+      result = result.filter(o => o.shippingMethod === shippingFilter);
+    }
+    return result;
+  }, [orders, searchQuery, statusFilter, shippingFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ORDERS_PER_PAGE));
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * ORDERS_PER_PAGE;
+    return filteredOrders.slice(start, start + ORDERS_PER_PAGE);
+  }, [filteredOrders, currentPage]);
+
+  // Unique shipping methods for filter
+  const uniqueShippingMethods = useMemo(() => {
+    const methods = new Set(orders.map(o => o.shippingMethod).filter(Boolean) as string[]);
+    return Array.from(methods).sort();
+  }, [orders]);
+
   // --- Handlers ---
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {}, 300);
+  };
+
   const handleSwitchMode = async (newMode: StripeMode) => {
     if (newMode === stripeStatus?.mode) return;
     setSwitching(true);
@@ -279,11 +409,15 @@ function AdminDashboardContent() {
 
   const openOrderDetail = async (orderId: string) => {
     setSelectedOrder(null);
+    setTrackingInput("");
     setOrderDetailLoading(true);
     try {
       const res = await fetch(`/api/orders?session_id=${orderId}`);
       const data = await res.json();
-      if (res.ok) setSelectedOrder(data);
+      if (res.ok) {
+        setSelectedOrder(data);
+        setTrackingInput(data.trackingNumber || "");
+      }
     } catch {}
     finally { setOrderDetailLoading(false); }
   };
@@ -298,13 +432,49 @@ function AdminDashboardContent() {
       if (res.ok) {
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, orderStatus: newStatus } : o));
         if (selectedOrder?.id === orderId) setSelectedOrder(prev => prev ? { ...prev, orderStatus: newStatus } : null);
-        lastStatusChangeAt.current = Date.now(); // <-- cooldown pour éviter écrasement
+        lastStatusChangeAt.current = Date.now();
       } else alert((await res.json()).error || "Erreur");
     } catch { alert("Erreur de connexion."); }
     finally { setUpdatingStatus(false); }
   };
 
-  const markAllRead = () => { setNotifications(prev => prev.map(n => ({ ...n, read: true }))); setUnreadCount(0); };
+  const handleSaveTrackingNumber = async (orderId: string) => {
+    if (!trackingInput.trim()) return;
+    setSavingTracking(true);
+    try {
+      const res = await fetch("/api/orders/status", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: orderId, status: "shipped", trackingNumber: trackingInput.trim() }),
+      });
+      if (res.ok) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, orderStatus: "shipped", trackingNumber: trackingInput.trim() } : o));
+        if (selectedOrder?.id === orderId) setSelectedOrder(prev => prev ? { ...prev, orderStatus: "shipped", trackingNumber: trackingInput.trim() } : null);
+        lastStatusChangeAt.current = Date.now();
+      } else alert((await res.json()).error || "Erreur");
+    } catch { alert("Erreur de connexion."); }
+    finally { setSavingTracking(false); }
+  };
+
+  const markNotificationRead = (notifId: string) => {
+    setNotifications(prev => {
+      const updated = prev.map(n => n.id === notifId ? { ...n, read: true } : n);
+      saveNotifications(updated);
+      return updated;
+    });
+  };
+
+  const markAllRead = () => {
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, read: true }));
+      saveNotifications(updated);
+      return updated;
+    });
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
+    saveNotifications([]);
+  };
 
   // Shipping handlers
   const updateShipping = (idx: number, patch: Partial<ShippingOpt>) => {
@@ -359,12 +529,12 @@ function AdminDashboardContent() {
           <div className="flex items-center gap-1.5">
             {/* Notification Bell */}
             <div className="relative" ref={notifPanelRef}>
-              <button onClick={() => { setShowNotifPanel(!showNotifPanel); if (showNotifPanel) markAllRead(); }}
+              <button onClick={() => setShowNotifPanel(!showNotifPanel)}
                 className="relative w-10 h-10 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all">
                 <span className={bellRinging ? "animate-bell-ring inline-block" : ""}><BellIcon className="w-[20px] h-[20px]" /></span>
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white animate-pulse-dot">
-                    {unreadCount > 9 ? "9+" : unreadCount}
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white animate-pulse-dot">
+                    {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
               </button>
@@ -373,19 +543,26 @@ function AdminDashboardContent() {
                   <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
-                      {unreadCount > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">{unreadCount}</span>}
+                      {unreadCount > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">{unreadCount} non lue{unreadCount > 1 ? "s" : ""}</span>}
                     </div>
-                    {notifications.length > 0 && <button onClick={markAllRead} className="text-[11px] text-gray-500 hover:text-gray-700 font-medium">Tout lire</button>}
+                    <div className="flex items-center gap-2">
+                      {unreadCount > 0 && (
+                        <button onClick={markAllRead} className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold">Tout lire</button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button onClick={clearAllNotifications} className="text-[11px] text-gray-400 hover:text-red-500 font-medium">Vider</button>
+                      )}
+                    </div>
                   </div>
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (
                       <div className="p-8 text-center">
                         <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-2"><BellIcon className="w-5 h-5 text-gray-400" /></div>
                         <p className="text-xs text-gray-400">Aucune notification</p>
                       </div>
                     ) : notifications.map(n => (
-                      <button key={n.id} onClick={() => { openOrderDetail(n.id); setShowNotifPanel(false); markAllRead(); }}
-                        className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50/80 transition-colors ${!n.read ? "bg-blue-50/30" : ""}`}>
+                      <button key={n.id} onClick={() => { openOrderDetail(n.id); setShowNotifPanel(false); markNotificationRead(n.id); }}
+                        className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50/80 transition-colors ${!n.read ? "bg-blue-50/40" : ""}`}>
                         <div className="flex items-start gap-3">
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${!n.read ? "bg-blue-100" : "bg-gray-100"}`}>
                             <PackageIcon className={`w-4 h-4 ${!n.read ? "text-blue-600" : "text-gray-400"}`} />
@@ -441,7 +618,7 @@ function AdminDashboardContent() {
             {[
               { label: "Chiffre d'affaires", value: fmtCurrency(totalRevenue, "eur"), icon: <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, bg: "bg-emerald-100" },
               { label: "Commandes", value: String(orders.length), icon: <PackageIcon className="w-3.5 h-3.5 text-blue-600" />, bg: "bg-blue-100" },
-              { label: "Panier moyen", value: orders.length > 0 ? fmtCurrency(avgOrder, "eur") : "—", icon: <svg className="w-3.5 h-3.5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>, bg: "bg-violet-100" },
+              { label: "Panier moyen", value: orders.length > 0 ? fmtCurrency(avgOrder, "eur") : "-", icon: <svg className="w-3.5 h-3.5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>, bg: "bg-violet-100" },
               { label: "En attente", value: String(pendingCount), icon: <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, bg: "bg-amber-100" },
             ].map((kpi, i) => (
               <div key={kpi.label} className="bg-white rounded-2xl border border-gray-200/60 p-4 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
@@ -533,19 +710,15 @@ function AdminDashboardContent() {
             </div>
             <div className="bg-white rounded-2xl border border-gray-200/60 p-4 sm:p-5">
               <p className="text-[11px] text-gray-400 mb-4">Activez ou désactivez les modes de livraison proposés au checkout. Modifiez les prix et délais.</p>
-
               <div className="space-y-2.5">
                 {shippingOpts.map((opt, idx) => (
                   <div key={opt.id} className={`rounded-xl border p-3 sm:p-4 transition-colors ${opt.active ? "border-gray-200 bg-white" : "border-gray-100 bg-gray-50/50 opacity-60"}`}>
                     <div className="flex items-center gap-3">
-                      {/* Toggle */}
                       <button onClick={() => updateShipping(idx, { active: !opt.active })}
                         className="relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 focus:outline-none"
                         style={{ backgroundColor: opt.active ? "#7c3aed" : "#d1d5db" }}>
                         <span className={`absolute top-[3px] left-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${opt.active ? "translate-x-[18px]" : ""}`} />
                       </button>
-
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
                         <input type="text" value={opt.name} onChange={e => updateShipping(idx, { name: e.target.value, id: slugify(e.target.value) || opt.id })}
                           className="w-full text-sm font-semibold text-gray-900 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 truncate" />
@@ -554,21 +727,19 @@ function AdminDashboardContent() {
                             <span className="text-[10px] text-gray-400">Prix :</span>
                             <input type="number" step="0.10" min="0" value={(opt.price / 100).toFixed(2)} onChange={e => updateShipping(idx, { price: Math.round(parseFloat(e.target.value) * 100) || 0 })}
                               className="w-16 text-xs font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-md px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-violet-300" />
-                            <span className="text-[10px] text-gray-400">€</span>
+                            <span className="text-[10px] text-gray-400">EUR</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-400">Délai :</span>
+                            <span className="text-[10px] text-gray-400">Delai :</span>
                             <input type="number" min="1" max="30" value={opt.minDays} onChange={e => updateShipping(idx, { minDays: parseInt(e.target.value) || 1 })}
                               className="w-10 text-xs font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-md px-1.5 py-0.5 text-center focus:outline-none focus:ring-1 focus:ring-violet-300" />
-                            <span className="text-[10px] text-gray-400">à</span>
+                            <span className="text-[10px] text-gray-400">a</span>
                             <input type="number" min={opt.minDays} max="60" value={opt.maxDays} onChange={e => updateShipping(idx, { maxDays: Math.max(parseInt(e.target.value) || 1, opt.minDays) })}
                               className="w-10 text-xs font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-md px-1.5 py-0.5 text-center focus:outline-none focus:ring-1 focus:ring-violet-300" />
                             <span className="text-[10px] text-gray-400">jours</span>
                           </div>
                         </div>
                       </div>
-
-                      {/* Delete */}
                       <button onClick={() => removeShipping(idx)}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
@@ -577,7 +748,6 @@ function AdminDashboardContent() {
                   </div>
                 ))}
               </div>
-
               <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
                 <button onClick={addShipping} className="text-[11px] font-semibold text-violet-600 hover:text-violet-700 px-3 py-1.5 rounded-lg hover:bg-violet-50 transition-colors">
                   + Ajouter un mode
@@ -591,7 +761,7 @@ function AdminDashboardContent() {
           </section>
         )}
 
-        {/* ORDERS */}
+        {/* ORDERS SECTION */}
         <section>
           <div className="flex items-center justify-between mb-2.5 px-1">
             <div className="flex items-center gap-2">
@@ -622,11 +792,63 @@ function AdminDashboardContent() {
                 <div className="p-12 text-center">
                   <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3"><PackageIcon className="w-6 h-6 text-gray-300" /></div>
                   <p className="text-gray-500 font-semibold text-sm">Aucune commande.</p>
-                  <p className="text-gray-400 text-xs mt-1">Les commandes apparaîtront automatiquement.</p>
+                  <p className="text-gray-400 text-xs mt-1">Les commandes apparaitront automatiquement.</p>
                 </div>
               )}
               {orders.length > 0 && (<>
-                {/* Desktop */}
+
+                {/* ===== SEARCH & FILTER BAR ===== */}
+                <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/40 space-y-3">
+                  {/* Search */}
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"><SearchIcon className="w-4 h-4" /></div>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => handleSearchChange(e.target.value)}
+                      placeholder="Rechercher par nom, email, produit, ref commande, ville..."
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 transition-all"
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><XIcon className="w-4 h-4" /></button>
+                    )}
+                  </div>
+                  {/* Filters row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 text-gray-400"><FilterIcon className="w-3.5 h-3.5" /><span className="text-[10px] font-semibold uppercase tracking-wider">Filtres</span></div>
+                    <select
+                      value={statusFilter}
+                      onChange={e => setStatusFilter(e.target.value)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300 cursor-pointer"
+                    >
+                      <option value="all">Tous les statuts</option>
+                      {Object.entries(ORDER_STATUS_CONFIG).map(([key, cfg]) => (
+                        <option key={key} value={key}>{cfg.label}</option>
+                      ))}
+                    </select>
+                    {uniqueShippingMethods.length > 0 && (
+                      <select
+                        value={shippingFilter}
+                        onChange={e => setShippingFilter(e.target.value)}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-300 cursor-pointer"
+                      >
+                        <option value="all">Tous les transporteurs</option>
+                        {uniqueShippingMethods.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    )}
+                    {(statusFilter !== "all" || shippingFilter !== "all" || searchQuery) && (
+                      <button onClick={() => { setStatusFilter("all"); setShippingFilter("all"); setSearchQuery(""); }}
+                        className="text-[11px] text-red-500 hover:text-red-600 font-medium px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+                        Reinitialiser
+                      </button>
+                    )}
+                    <span className="text-[10px] text-gray-400 ml-auto">{filteredOrders.length} resultat{filteredOrders.length > 1 ? "s" : ""}</span>
+                  </div>
+                </div>
+
+                {/* ===== DESKTOP TABLE ===== */}
                 <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -636,174 +858,314 @@ function AdminDashboardContent() {
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Montant</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Livraison</th>
-                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">État</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Suivi</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Etat</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date</th>
                         <th className="px-5 py-3"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {orders.map(order => {
+                      {paginatedOrders.map(order => {
                         const sc = ORDER_STATUS_CONFIG[order.orderStatus] || ORDER_STATUS_CONFIG.paid;
+                        const trackingUrl = getTrackingUrl(order.shippingMethod, order.trackingNumber || "");
                         return (
                           <tr key={order.id} className="hover:bg-gray-50/50 cursor-pointer transition-colors group" onClick={() => openOrderDetail(order.id)}>
                             <td className="px-5 py-3.5"><span className="font-mono text-xs text-gray-500 group-hover:text-gray-900">{order.id.slice(-8)}</span></td>
+                            <td className="px-5 py-3.5"><span className="text-xs text-gray-900 font-medium truncate block max-w-[180px]">{order.productName || "—"}</span></td>
                             <td className="px-5 py-3.5">
-                              <p className="text-xs font-medium text-gray-900 truncate max-w-[160px]">{order.productName || "—"}</p>
-                              {order.shippingMethod && <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1"><TruckIcon className="w-3 h-3" />{order.shippingMethod}</p>}
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <p className="text-xs font-medium text-gray-900 truncate max-w-[160px]">{order.customerName || "—"}</p>
+                              <p className="text-xs text-gray-900 font-medium truncate max-w-[160px]">{order.shippingName || order.customerName || "—"}</p>
                               <p className="text-[10px] text-gray-400 truncate max-w-[160px]">{order.customerEmail || ""}</p>
                             </td>
+                            <td className="px-5 py-3.5"><span className="text-xs font-semibold text-gray-900">{fmtCurrency(order.amount, order.currency)}</span></td>
                             <td className="px-5 py-3.5">
-                              <p className="text-xs font-bold text-gray-900">{fmtCurrency(order.amount, order.currency)}</p>
-                              {order.amountShipping != null && order.amountShipping > 0 && <p className="text-[10px] text-gray-400">dont {fmtCurrency(order.amountShipping, order.currency)}</p>}
+                              {order.shippingMethod ? (
+                                <span className="text-[10px] font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-md">{order.shippingMethod}</span>
+                              ) : <span className="text-xs text-gray-400">—</span>}
                             </td>
-                            <td className="px-5 py-3.5 text-xs text-gray-500">{order.shippingCity ? `${order.shippingCity}, ${order.shippingCountry}` : "—"}</td>
                             <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`w-2 h-2 rounded-full ${sc.dot}`} />
-                                <select value={order.orderStatus} onClick={e => e.stopPropagation()} onChange={e => handleStatusChange(order.id, e.target.value)} disabled={updatingStatus}
-                                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border-0 cursor-pointer ${sc.bg} ${sc.color}`}>
-                                  {Object.entries(ORDER_STATUS_CONFIG).map(([v, c]) => <option key={v} value={v}>{c.label}</option>)}
-                                </select>
-                              </div>
+                              {order.trackingNumber ? (
+                                <a href={trackingUrl || "#"} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+                                  {order.trackingNumber.length > 15 ? order.trackingNumber.slice(0, 15) + "..." : order.trackingNumber}
+                                  <ExternalLinkIcon className="w-3 h-3" />
+                                </a>
+                              ) : <span className="text-xs text-gray-300">—</span>}
                             </td>
-                            <td className="px-5 py-3.5 text-xs text-gray-400">{fmtDate(order.created)}</td>
-                            <td className="px-5 py-3.5"><svg className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></td>
+                            <td className="px-5 py-3.5">
+                              <select
+                                value={order.orderStatus}
+                                onChange={e => { e.stopPropagation(); handleStatusChange(order.id, e.target.value); }}
+                                onClick={e => e.stopPropagation()}
+                                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border cursor-pointer focus:outline-none focus:ring-1 focus:ring-gray-300 ${sc.bg} ${sc.color}`}
+                              >
+                                {Object.entries(ORDER_STATUS_CONFIG).map(([key, cfg]) => (
+                                  <option key={key} value={key}>{cfg.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-5 py-3.5"><span className="text-[11px] text-gray-500 whitespace-nowrap">{fmtDate(order.created)}</span></td>
+                            <td className="px-5 py-3.5">
+                              <button onClick={e => { e.stopPropagation(); openOrderDetail(order.id); }}
+                                className="text-gray-400 hover:text-gray-700 transition-colors p-1 rounded-lg hover:bg-gray-100">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
-                {/* Mobile */}
+
+                {/* ===== MOBILE CARDS ===== */}
                 <div className="lg:hidden divide-y divide-gray-100">
-                  {orders.map(order => {
+                  {paginatedOrders.map(order => {
                     const sc = ORDER_STATUS_CONFIG[order.orderStatus] || ORDER_STATUS_CONFIG.paid;
                     return (
-                      <div key={order.id} className="p-4 space-y-2.5 cursor-pointer active:bg-gray-50" onClick={() => openOrderDetail(order.id)}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-gray-500">{order.id.slice(-8)}</span>
-                            <div className="flex items-center gap-1.5"><span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} /><span className={`text-[10px] font-bold ${sc.color}`}>{sc.label}</span></div>
+                      <button key={order.id} onClick={() => openOrderDetail(order.id)} className="w-full text-left p-4 hover:bg-gray-50/50 transition-colors space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono text-[11px] text-gray-400">{order.id.slice(-8)}</span>
+                            <select
+                              value={order.orderStatus}
+                              onChange={e => { e.stopPropagation(); handleStatusChange(order.id, e.target.value); }}
+                              onClick={e => e.stopPropagation()}
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md border cursor-pointer focus:outline-none ${sc.bg} ${sc.color}`}
+                            >
+                              {Object.entries(ORDER_STATUS_CONFIG).map(([key, cfg]) => (
+                                <option key={key} value={key}>{cfg.label}</option>
+                              ))}
+                            </select>
                           </div>
-                          <span className="text-sm font-bold text-gray-900">{fmtCurrency(order.amount, order.currency)}</span>
+                          <span className="text-xs font-bold text-gray-900 flex-shrink-0">{fmtCurrency(order.amount, order.currency)}</span>
                         </div>
-                        {order.productName && <p className="text-xs font-medium text-gray-700">{order.productName}</p>}
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-500 truncate max-w-[60%]">{order.customerName || order.customerEmail || "—"}</p>
-                          <p className="text-[10px] text-gray-400">{fmtDate(order.created)}</p>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <PackageIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <span className="text-xs text-gray-700 truncate">{order.productName || "Produit"}</span>
                         </div>
-                        {(order.shippingCity || order.shippingMethod) && (
-                          <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                            {order.shippingMethod && <span className="flex items-center gap-1"><TruckIcon className="w-3 h-3" />{order.shippingMethod}</span>}
-                            {order.shippingCity && <span>{order.shippingCity}</span>}
-                          </div>
-                        )}
-                      </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-gray-500 truncate">{order.shippingName || order.customerName || ""}</span>
+                          <span className="text-[10px] text-gray-400 flex-shrink-0">{fmtDate(order.created)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {order.shippingMethod && <span className="text-[9px] font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded">{order.shippingMethod}</span>}
+                          {order.trackingNumber && (
+                            <span className="text-[9px] font-mono text-blue-600 font-semibold truncate max-w-[160px]">{order.trackingNumber}</span>
+                          )}
+                        </div>
+                      </button>
                     );
                   })}
                 </div>
+
+                {/* ===== PAGINATION ===== */}
+                {filteredOrders.length > ORDERS_PER_PAGE && (
+                  <div className="px-4 sm:px-5 py-3 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between">
+                    <p className="text-[11px] text-gray-500">
+                      {(currentPage - 1) * ORDERS_PER_PAGE + 1}–{Math.min(currentPage * ORDERS_PER_PAGE, filteredOrders.length)} sur {filteredOrders.length}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-200/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                        <ChevronLeftIcon />
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                          if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((p, i) => typeof p === "string" ? (
+                          <span key={`dots-${i}`} className="w-8 h-8 flex items-center justify-center text-[10px] text-gray-400">...</span>
+                        ) : (
+                          <button key={p} onClick={() => setCurrentPage(p)}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-semibold transition-colors ${
+                              currentPage === p ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-200/60"
+                            }`}>
+                            {p}
+                          </button>
+                        ))
+                      }
+                      <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-200/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                        <ChevronRightIcon />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {filteredOrders.length === 0 && orders.length > 0 && (
+                  <div className="p-12 text-center">
+                    <SearchIcon className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-semibold text-sm">Aucun resultat.</p>
+                    <p className="text-gray-400 text-xs mt-1">Essayez de modifier vos criteres de recherche.</p>
+                  </div>
+                )}
               </>)}
             </div>
           )}
         </section>
-
-        <div className="text-center py-2"><p className="text-[10px] text-gray-300">Actualisation automatique toutes les 15 secondes</p></div>
       </main>
 
-      {/* ORDER DETAIL MODAL */}
-      {(selectedOrder || orderDetailLoading) && (
-        <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center" onClick={() => setSelectedOrder(null)}>
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[92vh] overflow-y-auto animate-slide-up shadow-2xl" onClick={e => e.stopPropagation()}>
-            {orderDetailLoading ? (
-              <div className="p-12 text-center"><div className="w-8 h-8 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin mx-auto" /><p className="text-sm text-gray-400 mt-3">Chargement...</p></div>
-            ) : selectedOrder ? (
-              <div>
-                <div className="sticky top-0 bg-white/90 backdrop-blur-xl border-b border-gray-100 px-5 py-4 flex items-center justify-between z-10">
-                  <div><h3 className="font-bold text-gray-900 text-sm">Commande {selectedOrder.id.slice(-8)}</h3><p className="text-[11px] text-gray-400 mt-0.5">{fmtDate(selectedOrder.created)}</p></div>
-                  <button onClick={() => setSelectedOrder(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 text-lg">&times;</button>
-                </div>
-                <div className="p-5 space-y-5">
-                  {/* Product */}
-                  <div className="rounded-2xl border border-gray-100 overflow-hidden">
-                    <div className="p-4 flex items-center justify-between bg-gray-50/50">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center"><PackageIcon className="w-5 h-5 text-gray-400" /></div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{selectedOrder.productName || "Produit"}</p>
-                          <p className="text-[11px] text-gray-400">{selectedOrder.quantity ? `x${selectedOrder.quantity}` : "x1"}{selectedOrder.unitPrice ? ` — ${fmtCurrency(selectedOrder.unitPrice, selectedOrder.currency)}/u` : ""}</p>
-                        </div>
-                      </div>
-                      <span className="text-lg font-bold text-gray-900">{fmtCurrency(selectedOrder.amount, selectedOrder.currency)}</span>
-                    </div>
-                    {selectedOrder.amountSubtotal != null && selectedOrder.amountShipping != null && selectedOrder.amountShipping > 0 && (
-                      <div className="px-4 py-2.5 border-t border-gray-100 space-y-1.5">
-                        <div className="flex justify-between text-xs"><span className="text-gray-400">Sous-total</span><span className="text-gray-600">{fmtCurrency(selectedOrder.amountSubtotal, selectedOrder.currency)}</span></div>
-                        <div className="flex justify-between text-xs"><span className="text-gray-400 flex items-center gap-1"><TruckIcon className="w-3 h-3" />{selectedOrder.shippingMethod || "Livraison"}</span><span className="text-gray-600">{fmtCurrency(selectedOrder.amountShipping, selectedOrder.currency)}</span></div>
-                        <div className="flex justify-between text-sm pt-1.5 border-t border-gray-50"><span className="font-bold text-gray-700">Total</span><span className="font-bold text-gray-900">{fmtCurrency(selectedOrder.amount, selectedOrder.currency)}</span></div>
-                      </div>
-                    )}
-                  </div>
-                  {/* Status */}
-                  <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <div className="flex-1 p-3 rounded-xl bg-gray-50 border border-gray-100 text-center">
-                        <p className="text-[10px] text-gray-400 font-medium mb-1">Paiement</p>
-                        <span className={`text-[11px] font-bold px-3 py-1 rounded-lg ${selectedOrder.paymentStatus === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{selectedOrder.paymentStatus === "paid" ? "Payé" : "En attente"}</span>
-                      </div>
-                      <div className="flex-1 p-3 rounded-xl bg-gray-50 border border-gray-100 text-center">
-                        <p className="text-[10px] text-gray-400 font-medium mb-1">Commande</p>
-                        <select value={selectedOrder.orderStatus} onChange={e => handleStatusChange(selectedOrder.id, e.target.value)} disabled={updatingStatus}
-                          className={`text-[11px] font-bold px-3 py-1 rounded-lg border-0 cursor-pointer ${(ORDER_STATUS_CONFIG[selectedOrder.orderStatus] || ORDER_STATUS_CONFIG.paid).bg} ${(ORDER_STATUS_CONFIG[selectedOrder.orderStatus] || ORDER_STATUS_CONFIG.paid).color}`}>
-                          {Object.entries(ORDER_STATUS_CONFIG).map(([v, c]) => <option key={v} value={v}>{c.label}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="px-1">
-                      <div className="flex items-center gap-1">
-                        {STATUS_FLOW.map((step, i) => {
-                          const isActive = STATUS_FLOW.indexOf(selectedOrder.orderStatus as typeof STATUS_FLOW[number]) >= i;
-                          const isCurrent = selectedOrder.orderStatus === step;
-                          const cfg = ORDER_STATUS_CONFIG[step];
-                          return <div key={step} className="flex-1"><div className={`h-2 rounded-full transition-all duration-300 ${isActive ? (isCurrent ? cfg.dot : cfg.dot.replace("500", "200")) : "bg-gray-100"}`} /></div>;
-                        })}
-                      </div>
-                      <div className="flex justify-between mt-1.5">
-                        {STATUS_FLOW.map(step => <span key={step} className={`text-[9px] font-medium ${selectedOrder.orderStatus === step ? "text-gray-900" : "text-gray-400"}`}>{ORDER_STATUS_CONFIG[step].label}</span>)}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Client */}
-                  <div className="rounded-xl border border-gray-100 overflow-hidden">
-                    <div className="px-4 py-2.5 bg-gray-50/50 border-b border-gray-100"><h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Client</h4></div>
-                    <div className="p-4 space-y-2.5">
-                      {selectedOrder.customerName && <div className="flex justify-between"><span className="text-xs text-gray-400">Nom</span><span className="text-xs font-medium text-gray-900">{selectedOrder.customerName}</span></div>}
-                      {selectedOrder.customerEmail && <div className="flex justify-between"><span className="text-xs text-gray-400">Email</span><span className="text-xs font-medium text-gray-900">{selectedOrder.customerEmail}</span></div>}
-                      {selectedOrder.customerPhone && <div className="flex justify-between"><span className="text-xs text-gray-400">Téléphone</span><span className="text-xs font-medium text-gray-900">{selectedOrder.customerPhone}</span></div>}
-                    </div>
-                  </div>
-                  {/* Shipping */}
-                  <div className="rounded-xl border border-gray-100 overflow-hidden">
-                    <div className="px-4 py-2.5 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
-                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Livraison</h4>
-                      {selectedOrder.shippingMethod && <span className="text-[10px] font-semibold text-violet-600 flex items-center gap-1"><TruckIcon className="w-3 h-3" />{selectedOrder.shippingMethod}</span>}
-                    </div>
-                    <div className="p-4">
-                      {selectedOrder.shippingName && selectedOrder.shippingName !== selectedOrder.customerName && <p className="text-xs font-medium text-gray-900 mb-1">{selectedOrder.shippingName}</p>}
-                      <p className="text-xs text-gray-600 leading-relaxed">{fmtAddress(selectedOrder.shippingAddress)}</p>
-                    </div>
-                  </div>
-                  {/* Billing */}
-                  <div className="rounded-xl border border-gray-100 overflow-hidden">
-                    <div className="px-4 py-2.5 bg-gray-50/50 border-b border-gray-100"><h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Facturation</h4></div>
-                    <div className="p-4"><p className="text-xs text-gray-600 leading-relaxed">{fmtAddress(selectedOrder.billingAddress)}</p></div>
-                  </div>
+      {/* ===== ORDER DETAIL MODAL ===== */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setSelectedOrder(null)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <div className="sticky top-0 bg-white/90 backdrop-blur-xl border-b border-gray-100 px-5 sm:px-6 py-4 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center"><PackageIcon className="w-4 h-4 text-gray-600" /></div>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Commande {selectedOrder.id.slice(-8)}</p>
+                  <p className="text-[10px] text-gray-400">{fmtDate(selectedOrder.created)}</p>
                 </div>
               </div>
-            ) : null}
+              <button onClick={() => setSelectedOrder(null)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="px-5 sm:px-6 py-5 space-y-5">
+              {/* Status pipeline */}
+              <div>
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Statut de la commande</h3>
+                <div className="flex items-center gap-1">
+                  {STATUS_FLOW.map((step, idx) => {
+                    const isActive = STATUS_FLOW.indexOf(selectedOrder.orderStatus as any) >= idx;
+                    const isCurrent = selectedOrder.orderStatus === step;
+                    const cfg = ORDER_STATUS_CONFIG[step];
+                    return (
+                      <div key={step} className="flex-1 flex flex-col items-center gap-1.5">
+                        <button onClick={() => handleStatusChange(selectedOrder.id, step)} disabled={updatingStatus}
+                          className={`w-full flex items-center gap-1 ${idx < STATUS_FLOW.length - 1 ? "flex-col" : ""}`}>
+                          <div className={`w-full flex items-center ${idx < STATUS_FLOW.length - 1 ? "" : ""}`}>
+                            {idx > 0 && <div className={`h-0.5 flex-1 ${isActive ? "bg-gray-900" : "bg-gray-200"}`} />}
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-2 transition-all ${
+                              isCurrent ? "border-gray-900 bg-gray-900 animate-status-glow" : isActive ? "border-gray-900 bg-white" : "border-gray-200 bg-white"
+                            }`}>
+                              {isActive && <div className={`w-2.5 h-2.5 rounded-full ${isCurrent ? "bg-white" : "bg-gray-900"}`} />}
+                            </div>
+                            {idx < STATUS_FLOW.length - 1 && <div className={`h-0.5 flex-1 ${STATUS_FLOW.indexOf(selectedOrder.orderStatus as any) > idx ? "bg-gray-900" : "bg-gray-200"}`} />}
+                          </div>
+                        </button>
+                        <span className={`text-[9px] font-semibold ${isCurrent ? "text-gray-900" : isActive ? "text-gray-600" : "text-gray-400"}`}>{cfg.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Cancel */}
+                <div className="flex justify-end mt-2">
+                  <button onClick={() => handleStatusChange(selectedOrder.id, "cancelled")} disabled={updatingStatus}
+                    className="text-[10px] font-semibold text-red-500 hover:text-red-700 px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50">
+                    Annuler la commande
+                  </button>
+                </div>
+              </div>
+
+              {/* Tracking number */}
+              {(selectedOrder.orderStatus === "shipped" || selectedOrder.orderStatus === "delivered") && (
+                <div className={`rounded-xl border p-4 ${selectedOrder.trackingNumber ? "border-blue-200 bg-blue-50/30" : "border-amber-200 bg-amber-50/30"}`}>
+                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Numero de suivi</h3>
+                  {selectedOrder.trackingNumber ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{detectCarrierLabel(selectedOrder.shippingMethod)}</span>
+                        <span className="font-mono text-xs font-bold text-gray-900">{selectedOrder.trackingNumber}</span>
+                      </div>
+                      {getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber) && (
+                        <a href={getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber)!} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                          Suivre le colis
+                        </a>
+                      )}
+                      <div className="flex items-center gap-2 pt-1">
+                        <input type="text" value={trackingInput} onChange={e => setTrackingInput(e.target.value)}
+                          placeholder="Modifier le numero..."
+                          className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300" />
+                        <button onClick={() => handleSaveTrackingNumber(selectedOrder.id)} disabled={savingTracking || !trackingInput.trim()}
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-3 py-2 rounded-lg hover:bg-blue-50 border border-blue-200 disabled:opacity-50 transition-colors">
+                          {savingTracking ? "..." : "Mettre a jour"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input type="text" value={trackingInput} onChange={e => setTrackingInput(e.target.value)}
+                        placeholder="Entrez le numero de suivi..."
+                        className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-300" />
+                      <button onClick={() => handleSaveTrackingNumber(selectedOrder.id)} disabled={savingTracking || !trackingInput.trim()}
+                        className="text-[11px] font-semibold text-white bg-amber-500 hover:bg-amber-600 px-3 py-2 rounded-lg disabled:opacity-50 transition-colors">
+                        {savingTracking ? "..." : "Enregistrer"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Price breakdown */}
+              <div className="rounded-xl border border-gray-100 p-4">
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Details de la commande</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                      <PackageIcon className="w-4 h-4 text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{selectedOrder.productName || "Produit"}</p>
+                      <p className="text-[11px] text-gray-400">
+                        {selectedOrder.quantity ? `x${selectedOrder.quantity}` : "x1"}
+                        {selectedOrder.unitPrice ? ` — ${fmtCurrency(selectedOrder.unitPrice, selectedOrder.currency)}/unite` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  {(selectedOrder.amountSubtotal !== null && selectedOrder.amountShipping !== null && selectedOrder.amountShipping > 0) ? (
+                    <div className="space-y-1.5 pt-2 border-t border-gray-50">
+                      <div className="flex justify-between text-xs"><span className="text-gray-400">Sous-total</span><span className="text-gray-600">{fmtCurrency(selectedOrder.amountSubtotal, selectedOrder.currency)}</span></div>
+                      <div className="flex justify-between text-xs"><span className="text-gray-400">{selectedOrder.shippingMethod || "Livraison"}</span><span className="text-gray-600">{fmtCurrency(selectedOrder.amountShipping, selectedOrder.currency)}</span></div>
+                      <div className="flex justify-between text-sm pt-1.5 border-t border-gray-100"><span className="font-bold text-gray-700">Total</span><span className="font-bold text-gray-900">{fmtCurrency(selectedOrder.amount, selectedOrder.currency)}</span></div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-sm pt-2 border-t border-gray-50"><span className="font-bold text-gray-700">Total</span><span className="font-bold text-gray-900">{fmtCurrency(selectedOrder.amount, selectedOrder.currency)}</span></div>
+                  )}
+                </div>
+              </div>
+
+              {/* Customer info */}
+              <div className="rounded-xl border border-gray-100 p-4">
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Informations client</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {selectedOrder.customerName && <div><span className="text-gray-400 block">Nom</span><span className="text-gray-900 font-medium">{selectedOrder.customerName}</span></div>}
+                  {selectedOrder.customerEmail && <div><span className="text-gray-400 block">Email</span><a href={`mailto:${selectedOrder.customerEmail}`} className="text-blue-600 font-medium hover:underline">{selectedOrder.customerEmail}</a></div>}
+                  {selectedOrder.customerPhone && <div><span className="text-gray-400 block">Telephone</span><a href={`tel:${selectedOrder.customerPhone}`} className="text-blue-600 font-medium hover:underline">{selectedOrder.customerPhone}</a></div>}
+                  {selectedOrder.shippingMethod && <div><span className="text-gray-400 block">Transporteur</span><span className="text-violet-600 font-semibold">{selectedOrder.shippingMethod}</span></div>}
+                </div>
+              </div>
+
+              {/* Addresses */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-gray-100 p-4">
+                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Adresse de livraison</h3>
+                  <p className="text-xs text-gray-600 leading-relaxed">{fmtAddress(selectedOrder.shippingAddress)}</p>
+                </div>
+                <div className="rounded-xl border border-gray-100 p-4">
+                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Adresse de facturation</h3>
+                  <p className="text-xs text-gray-600 leading-relaxed">{fmtAddress(selectedOrder.billingAddress)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading overlay for order detail */}
+      {orderDetailLoading && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/10 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl text-center">
+            <div className="w-8 h-8 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin mx-auto" />
+            <p className="text-sm text-gray-500 mt-3">Chargement...</p>
           </div>
         </div>
       )}
@@ -811,6 +1173,10 @@ function AdminDashboardContent() {
   );
 }
 
-export default function AdminDashboard() {
-  return <Suspense><AdminDashboardContent /></Suspense>;
+export default function AdminPage() {
+  return (
+    <Suspense>
+      <AdminDashboardContent />
+    </Suspense>
+  );
 }

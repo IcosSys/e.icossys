@@ -48,6 +48,7 @@ interface OrderListItem {
   shippingCountry: string | null;
   shippingName: string | null;
   shippingMethod: string | null;
+  trackingNumber: string | null;
 }
 
 // --- Helpers ---
@@ -117,6 +118,7 @@ export async function GET(req: NextRequest) {
       // Price breakdown
       const unitPrice = session.metadata?.unit_price ? Number(session.metadata.unit_price) : null;
       const quantity = session.metadata?.quantity ? Number(session.metadata.quantity) : null;
+      const trackingNumber = session.metadata?.tracking_number || null;
 
       return NextResponse.json({
         id: session.id,
@@ -138,6 +140,7 @@ export async function GET(req: NextRequest) {
         productName,
         unitPrice,
         quantity,
+        trackingNumber,
       });
     }
 
@@ -169,6 +172,7 @@ export async function GET(req: NextRequest) {
           shippingCountry: addr?.country || null,
           shippingName: raw.shipping_details?.name || null,
           shippingMethod: raw.shipping_cost?.shipping_rate?.display_name || null,
+          trackingNumber: s.metadata?.tracking_number || null,
         };
       });
 

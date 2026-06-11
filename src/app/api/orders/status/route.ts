@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Stripe non configuré." }, { status: 400 });
   }
 
-  const { sessionId, status } = await req.json();
+  const { sessionId, status, trackingNumber } = await req.json();
 
   if (!sessionId || !status) {
     return NextResponse.json({ error: "sessionId et status requis." }, { status: 400 });
@@ -30,17 +30,26 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Construire metadata : préserver les clés existantes, ajouter/modifier order_status et tracking_number
+    const existing = await stripe.checkout.sessions.retrieve(sessionId);
+    const existingMeta = (existing.metadata as Record<string, string>) || {};
+    const newMeta: Record<string, string> = { ...existingMeta, order_status: status };
+    if (trackingNumber && trackingNumber.trim()) {
+      newMeta.tracking_number = trackingNumber.trim();
+    }
+
     const session = await stripe.checkout.sessions.update(sessionId, {
-      metadata: { order_status: status },
+      metadata: newMeta,
     });
 
-    console.log(`[Orders] Statut ${sessionId} → ${status} (${STATUS_LABELS[status]})`);
+    console.log(`[Orders] Statut ${sessionId} → ${status} (${STATUS_LABELS[status]})${trackingNumber ? ` — suivi: ${trackingNumber}` : ""}`);
 
     return NextResponse.json({
       success: true,
       sessionId: session.id,
       status,
       label: STATUS_LABELS[status],
+      trackingNumber: trackingNumber || null,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erreur Stripe";
