@@ -14,9 +14,13 @@ export async function POST(req: NextRequest) {
 
   // Vérifier que la clé est valide
   try {
+    console.log(`[Stripe Config] Validation de la clé ...${secretKey.slice(-4)}`);
     const testStripe = new Stripe(secretKey, { typescript: true });
     await testStripe.balance.retrieve();
-  } catch {
+    console.log(`[Stripe Config] Clé ...${secretKey.slice(-4)} validée avec succès.`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Clé invalide";
+    console.error(`[Stripe Config] Échec validation: ${message}`);
     return NextResponse.json({ error: "Clé Stripe invalide ou inactive." }, { status: 400 });
   }
 
@@ -34,5 +38,6 @@ export async function POST(req: NextRequest) {
     maxAge: 60 * 60 * 24 * 365, // 1 an
   });
 
+  console.log(`[Stripe Config] Cookie défini pour la clé ...${secretKey.slice(-4)}`);
   return res;
 }

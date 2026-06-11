@@ -2,22 +2,26 @@
 
 export default function Home() {
   const handleBuy = async () => {
-    const res = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        productName: "Produit Test",
-        price: 1000, // 10.00 EUR en centimes
-        quantity: 1,
-      }),
-    });
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName: "Produit Test",
+          price: 1000, // 10.00 EUR en centimes
+          quantity: 1,
+        }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (data.url) {
-      window.location.href = data.url;
-    } else {
-      alert(data.error || "Erreur");
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("Erreur : " + (data.error || "Impossible de créer la session de paiement."));
+      }
+    } catch (err) {
+      alert("Erreur de connexion au serveur.");
     }
   };
 

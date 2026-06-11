@@ -19,14 +19,41 @@ export async function getStripeStatus(): Promise<{ connected: boolean; lastFour?
   };
 }
 
-// Instance Stripe avec la clé du commerçant (serveur uniquement)
-let _stripe: Stripe | null = null;
+// Cache sécurisé par hash de clé — évite le bug du singleton périmé en serverless
+const stripeCache: Map<string, Stripe> = new Map();
+let cachedKeyHash: string | null = null;
+
+function hashKey(key: string): string {
+  // Hash simple pour comparer les clés sans les stocker en clair
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    const char = key.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return hash.toString();
+}
 
 export async function getStripe(): Promise<Stripe | null> {
   const secretKey = await getStripeSecretKey();
-  if (!secretKey) return null;
-  if (!_stripe) {
-    _stripe = new Stripe(secretKey, { typescript: true });
+  if (!secretKey) {
+    console.log("[Stripe] Aucune clé trouvée dans le cookie.");
+    return null;
   }
-  return _stripe;
+
+  const keyHash = hashKey(secretKey);
+
+  // Si la clé a changé, on invalide le cache
+  if (cachedKeyHash && cachedKeyHash !== keyHash) {
+    console.log("[Stripe] Clé modifiée, invalidation du cache.");
+    stripeCache.clear();
+  }
+
+  if (!stripeCache.has(keyHash)) {
+    console.log(`[Stripe] Nouvelle instance Stripe créée (clé ...${secretKey.slice(-4)}).`);
+    stripeCache.set(keyHash, new Stripe(secretKey, { typescript: true }));
+    cachedKeyHash = keyHash;
+  }
+
+  return stripeCache.get(keyHash)!;
 }
