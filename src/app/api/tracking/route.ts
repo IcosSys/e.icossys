@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AFTERSHIP_API = "https://api.aftership.com/v4";
+// AfterShip API v2026-01 (new format)
+const AFTERSHIP_API = "https://api.aftership.com/tracking/2026-01";
 const AFTERSHIP_KEY = process.env.AFTERSHIP_API_KEY;
 
 // AfterShip slug mapping for French carriers
@@ -54,27 +55,20 @@ export interface TrackingResult {
   signedBy: string | null;
 }
 
-export interface TrackingSummary {
-  tag: string;
-  label: string;
-  color: string;
-  bg: string;
-  lastUpdate: string;
-}
-
-function parseTracking(data: Record<string, unknown>): TrackingResult | null {
-  const tracking = data?.tracking as Record<string, unknown> | undefined;
+function parseTrackingV2026(tracking: Record<string, unknown>): TrackingResult | null {
   if (!tracking) return null;
 
-  const tag = (tracking.tag as string) || "Pending";
+  const tag = (tracking.tag as string) || (tracking.subtag as string) || "Pending";
   const cfg = TAG_CONFIG[tag] || TAG_CONFIG.Pending;
-  const checkpoints = ((tracking.checkpoints || []) as Record<string, unknown>[])
-    .map((cp) => ({
-      time: (cp.checkpoint_time as string) || "",
-      location: (cp.location as string) || "",
-      tag: (cp.tag as string) || "",
-      message: (cp.message as string) || "",
-    }));
+
+  // v2026-01 checkpoint format
+  const events = (tracking.events || tracking.checkpoints || []) as Record<string, unknown>[];
+  const checkpoints = events.map((cp) => ({
+    time: (cp.time as string) || (cp.checkpoint_time as string) || "",
+    location: (cp.location as string) || "",
+    tag: (cp.tag as string) || (cp.subtag as string) || "",
+    message: (cp.message as string) || (cp.status_description as string) || "",
+  }));
 
   return {
     tag,
@@ -82,11 +76,11 @@ function parseTracking(data: Record<string, unknown>): TrackingResult | null {
     label: cfg.label,
     color: cfg.color,
     bg: cfg.bg,
-    lastUpdate: (tracking.updated_at as string) || "",
-    originCountry: (tracking.origin_country as string) || null,
-    destinationCountry: (tracking.destination_country as string) || null,
+    lastUpdate: (tracking.updated_at as string) || (tracking.last_updated_at as string) || "",
+    originCountry: (tracking.origin_country as string) || (tracking.origin_country_iso3 as string) || null,
+    destinationCountry: (tracking.destination_country as string) || (tracking.destination_country_iso3 as string) || null,
     checkpoints,
-    shipmentWeight: (tracking.shipment_weight as string) || null,
+    shipmentWeight: (tracking.shipment_weight as string) || (tracking.weight as string) || null,
     signedBy: (tracking.signed_by as string) || null,
   };
 }
@@ -109,50 +103,50 @@ export async function POST(req: NextRequest) {
   try {
     const trackingPayload: Record<string, unknown> = {
       tracking_number: trackingNumber.trim(),
-      ...(slug && { slug }),
     };
-
-    // Add optional metadata
+    if (slug) trackingPayload.slug = slug;
     if (title) trackingPayload.title = title;
-    if (orderId) {
-      trackingPayload.custom_fields = { order_id: orderId };
-    }
+    if (orderId) trackingPayload.order_id = orderId;
 
-    console.log(`[AfterShip] Enregistrement: ${trackingNumber.trim()}${slug ? ` (${slug})` : " (auto-detect)"}`);
+    console.log(`[Tracking] Enregistrement: ${trackingNumber.trim()}${slug ? ` (${slug})` : " (auto-detect)"}`);
 
     const res = await fetch(`${AFTERSHIP_API}/trackings`, {
       method: "POST",
       headers: {
-        "aftership-api-key": AFTERSHIP_KEY,
+        "as-api-key": AFTERSHIP_KEY,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ tracking: trackingPayload }),
+      body: JSON.stringify(trackingPayload),
     });
 
     const data = await res.json();
 
-    if (!res.ok || data?.meta?.code !== 201) {
-      // If already exists (code 4003), that's fine — just return success
+    if (!res.ok) {
       const code = data?.meta?.code;
-      if (code === 4003) {
-        console.log(`[AfterShip] Déjà enregistré: ${trackingNumber.trim()}`);
+      // Already exists — that's fine
+      if (code === 4003 || res.status === 409) {
+        console.log(`[Tracking] Déjà enregistré: ${trackingNumber.trim()}`);
         return NextResponse.json({ success: true, alreadyExists: true });
       }
       const msg = data?.meta?.message || "Erreur AfterShip";
-      console.error(`[AfterShip] Erreur: ${msg}`);
+      console.error(`[Tracking] Erreur: ${msg} (code: ${code})`);
+      // If 403 = plan limitation, return a clear message
+      if (res.status === 403) {
+        return NextResponse.json({
+          error: "L'API AfterShip requiert un plan Pro. Le suivi manuel reste disponible via le lien du transporteur.",
+          planRequired: true,
+        }, { status: 200 }); // Return 200 so the UI doesn't show a scary error
+      }
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    const result = parseTracking(data.data);
-    console.log(`[AfterShip] Enregistré: ${trackingNumber.trim()} — ${result?.tag}`);
+    const result = parseTrackingV2026((data.data as Record<string, unknown>)?.tracking as Record<string, unknown> || data.data as Record<string, unknown>);
+    console.log(`[Tracking] Enregistré: ${trackingNumber.trim()} — ${result?.tag}`);
 
-    return NextResponse.json({
-      success: true,
-      tracking: result,
-    });
+    return NextResponse.json({ success: true, tracking: result });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erreur AfterShip";
-    console.error(`[AfterShip] Échec: ${message}`);
+    const message = err instanceof Error ? err.message : "Erreur réseau";
+    console.error(`[Tracking] Échec: ${message}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -177,18 +171,16 @@ export async function GET(req: NextRequest) {
     let url: string;
 
     if (slug) {
-      // Direct lookup with known carrier
       url = `${AFTERSHIP_API}/trackings/${slug}/${encodeURIComponent(trackingNumber.trim())}`;
     } else {
-      // Search by tracking number (auto-detect carrier)
       url = `${AFTERSHIP_API}/trackings?tracking_number=${encodeURIComponent(trackingNumber.trim())}`;
     }
 
-    console.log(`[AfterShip] Vérification: ${trackingNumber.trim()}${slug ? ` (${slug})` : " (auto-detect)"}`);
+    console.log(`[Tracking] Vérification: ${trackingNumber.trim()}${slug ? ` (${slug})` : " (auto-detect)"}`);
 
     const res = await fetch(url, {
       headers: {
-        "aftership-api-key": AFTERSHIP_KEY,
+        "as-api-key": AFTERSHIP_KEY,
         "Content-Type": "application/json",
       },
     });
@@ -196,32 +188,40 @@ export async function GET(req: NextRequest) {
     const data = await res.json();
 
     if (!res.ok) {
-      const msg = data?.meta?.message || "Erreur AfterShip";
-      console.error(`[AfterShip] Erreur vérification: ${msg}`);
+      const code = data?.meta?.code;
+      // If 403 = plan limitation, return a friendly message
+      if (res.status === 403) {
+        console.log(`[Tracking] Plan Pro requis pour la vérification live.`);
+        return NextResponse.json({
+          error: "L'API AfterShip requiert un plan Pro pour le suivi en temps réel. Le lien de suivi du transporteur reste disponible.",
+          planRequired: true,
+        }, { status: 200 }); // 200 so UI handles gracefully
+      }
+      const msg = data?.meta?.message || "Aucun suivi trouvé pour ce numéro.";
+      console.error(`[Tracking] Erreur vérification: ${msg}`);
       return NextResponse.json({ error: msg }, { status: 404 });
     }
 
-    // Handle both single tracking and list response
-    const trackingData = data?.data?.tracking
-      ? data.data
-      : Array.isArray(data?.data?.trackings) && data.data.trackings.length > 0
-        ? { tracking: data.data.trackings[0] }
-        : null;
+    // Parse response — v2026-01 format
+    const rawTracking = (data.data as Record<string, unknown>)?.tracking as Record<string, unknown>
+      || (data.data as Record<string, unknown>)
+      || null;
 
-    if (!trackingData) {
+    // If list response, take first item
+    const listTrackings = (data.data as Record<string, unknown>)?.trackings as Record<string, unknown>[] | undefined;
+    const tracking = rawTracking || (listTrackings?.[0] ? listTrackings[0] : null);
+
+    if (!tracking) {
       return NextResponse.json({ error: "Aucun suivi trouvé pour ce numéro." }, { status: 404 });
     }
 
-    const result = parseTracking(trackingData);
-    console.log(`[AfterShip] Statut: ${trackingNumber.trim()} → ${result?.tag}`);
+    const result = parseTrackingV2026(tracking);
+    console.log(`[Tracking] Statut: ${trackingNumber.trim()} → ${result?.tag}`);
 
-    return NextResponse.json({
-      success: true,
-      tracking: result,
-    });
+    return NextResponse.json({ success: true, tracking: result });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erreur AfterShip";
-    console.error(`[AfterShip] Échec vérification: ${message}`);
+    const message = err instanceof Error ? err.message : "Erreur réseau";
+    console.error(`[Tracking] Échec vérification: ${message}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

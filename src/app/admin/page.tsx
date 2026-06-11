@@ -524,6 +524,9 @@ function AdminDashboardContent() {
           setOrders(prev => prev.map(o => o.id === orderId ? { ...o, orderStatus: "delivered" } : o));
           if (selectedOrder?.id === orderId) setSelectedOrder(prev => prev ? { ...prev, orderStatus: "delivered" } : null);
         }
+      } else if (data.planRequired) {
+        // AfterShip requires Pro plan — show friendly message, not error
+        if (isModal) setTrackError(null); // Don't show error for plan limitation
       } else {
         if (isModal) setTrackError(data.error || "Aucun suivi trouvé.");
       }
@@ -1271,7 +1274,7 @@ function AdminDashboardContent() {
                         </div>
                       )}
                       {!trackLoading && !trackData && !trackError && (
-                        <p className="text-[10px] text-gray-400 italic">Cliquez sur "Actualiser" pour vérifier le statut en temps réel.</p>
+                        <p className="text-[10px] text-gray-400 italic">Cliquez sur "Actualiser" pour vérifier le statut en temps réel via AfterShip (nécessite un plan Pro).</p>
                       )}
                       <div className="flex items-center gap-2 pt-1">
                         {getTrackingUrl(selectedOrder.shippingMethod, selectedOrder.trackingNumber) && (

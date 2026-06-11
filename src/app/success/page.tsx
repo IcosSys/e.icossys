@@ -71,7 +71,10 @@ function TrackingBlock({ method, number }: { method: string | null; number: stri
     if (method) params.set("shipping_method", method);
     fetch(`/api/tracking?${params}`)
       .then(r => r.json())
-      .then(data => { if (data.tracking) setTrackData(data.tracking); })
+      .then(data => {
+        if (data.tracking) setTrackData(data.tracking);
+        // If planRequired, just don't show live status — link still works
+      })
       .catch(() => {})
       .finally(() => setTrackLoading(false));
   }, [number, method]);
