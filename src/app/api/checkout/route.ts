@@ -3,6 +3,12 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { getActiveShippingOptions } from "@/lib/shipping";
 
+interface LineItemInput {
+  productName: string;
+  price: number;
+  quantity: number;
+}
+
 export async function POST(req: NextRequest) {
   const stripe = await getStripe();
 
@@ -14,32 +20,50 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { productName, price, quantity } = await req.json();
+  const body = await req.json();
 
-  if (!productName || !price || !quantity) {
+  // Support deux formats : ancien (produit unique) et nouveau (panier multi-produits)
+  let lineItems: LineItemInput[];
+
+  if (body.items && Array.isArray(body.items) && body.items.length > 0) {
+    // Nouveau format : panier avec plusieurs articles
+    lineItems = body.items;
+  } else if (body.productName && body.price && body.quantity) {
+    // Ancien format : produit unique (compatibilité arrière)
+    lineItems = [{ productName: body.productName, price: body.price, quantity: body.quantity }];
+  } else {
     return NextResponse.json({ error: "Données manquantes." }, { status: 400 });
   }
+
+  // Validation
+  for (const item of lineItems) {
+    if (!item.productName || !item.price || !item.quantity) {
+      return NextResponse.json({ error: "Données produit manquantes." }, { status: 400 });
+    }
+  }
+
+  const totalQty = lineItems.reduce((s, i) => s + i.quantity, 0);
+  const totalAmount = lineItems.reduce((s, i) => s + i.price * i.quantity, 0);
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || req.headers.get("origin") || "https://e-icossys.vercel.app";
 
   // Modes de livraison actifs depuis la config admin
   const activeShipping = await getActiveShippingOptions();
 
-  console.log(`[Checkout] ${productName} — ${(price / 100).toFixed(2)} EUR x${quantity} — ${activeShipping.length} mode(s) livraison`);
+  const itemNames = lineItems.map(i => i.productName).join(", ");
+  console.log(`[Checkout] ${itemNames} — ${(totalAmount / 100).toFixed(2)} EUR (${totalQty} article${totalQty > 1 ? "s" : ""}) — ${activeShipping.length} mode(s) livraison`);
 
   try {
     const params: Parameters<typeof stripe.checkout.sessions.create>[0] = {
       mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "eur",
-            unit_amount: price,
-            product_data: { name: productName },
-          },
-          quantity,
+      line_items: lineItems.map(item => ({
+        price_data: {
+          currency: "eur",
+          unit_amount: item.price,
+          product_data: { name: item.productName },
         },
-      ],
+        quantity: item.quantity,
+      })),
       customer_creation: "always",
       billing_address_collection: "required",
       phone_number_collection: { enabled: true },
@@ -55,9 +79,11 @@ export async function POST(req: NextRequest) {
       metadata: {
         source: "e-icossys",
         order_status: "paid",
-        product_name: productName,
-        unit_price: String(price),
-        quantity: String(quantity),
+        product_name: lineItems.length === 1 ? lineItems[0].productName : `${lineItems.length} articles`,
+        unit_price: String(lineItems[0].price),
+        quantity: String(totalQty),
+        // Stocker tous les items en JSON pour référence
+        cart_items: JSON.stringify(lineItems),
       },
       custom_text: {
         submit: {
