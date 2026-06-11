@@ -11,29 +11,33 @@ const COOKIE_OPTIONS = {
 };
 
 export async function POST(req: NextRequest) {
-  const { secretKey, mode } = await req.json();
+  const { secretKey } = await req.json();
 
   if (!secretKey || typeof secretKey !== "string") {
     return NextResponse.json({ error: "Clé Stripe requise." }, { status: 400 });
   }
 
-  // Déterminer le mode demandé
-  const targetMode: StripeMode = mode === "live" ? "live" : "test";
+  const trimmed = secretKey.trim();
 
-  // Vérifier la cohérence clé / mode
-  if (targetMode === "test" && !secretKey.startsWith("sk_test_")) {
-    return NextResponse.json({ error: "Une clé de test doit commencer par sk_test_" }, { status: 400 });
-  }
-  if (targetMode === "live" && !secretKey.startsWith("sk_live_")) {
-    return NextResponse.json({ error: "Une clé live doit commencer par sk_live_" }, { status: 400 });
+  // Auto-détecter le mode depuis le préfixe
+  let targetMode: StripeMode;
+  if (trimmed.startsWith("sk_test_")) {
+    targetMode = "test";
+  } else if (trimmed.startsWith("sk_live_")) {
+    targetMode = "live";
+  } else {
+    return NextResponse.json(
+      { error: "La clé doit commencer par sk_test_ ou sk_live_" },
+      { status: 400 }
+    );
   }
 
   // Vérifier que la clé est valide
   try {
-    console.log(`[Stripe Config] Validation clé ${targetMode} ...${secretKey.slice(-4)}`);
-    const testStripe = new Stripe(secretKey, { typescript: true });
+    console.log(`[Stripe Config] Validation clé ${targetMode} ...${trimmed.slice(-4)}`);
+    const testStripe = new Stripe(trimmed, { typescript: true });
     await testStripe.balance.retrieve();
-    console.log(`[Stripe Config] Clé ${targetMode} ...${secretKey.slice(-4)} validée.`);
+    console.log(`[Stripe Config] Clé ${targetMode} ...${trimmed.slice(-4)} validée.`);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Clé invalide";
     console.error(`[Stripe Config] Échec: ${message}`);
@@ -44,28 +48,19 @@ export async function POST(req: NextRequest) {
   const res = NextResponse.json({
     success: true,
     mode: targetMode,
-    lastFour: secretKey.slice(-4),
+    lastFour: trimmed.slice(-4),
   });
 
-  res.cookies.set(cookieName, secretKey, COOKIE_OPTIONS);
+  res.cookies.set(cookieName, trimmed, COOKIE_OPTIONS);
 
-  // Si c'est la première clé configurée, activer ce mode automatiquement
-  const existingTest = req.cookies.get("stripe_test_key")?.value;
-  const existingLive = req.cookies.get("stripe_live_key")?.value;
-  const currentMode = req.cookies.get("stripe_mode")?.value || "test";
-
-  if (
-    (targetMode === "test" && !existingLive) ||
-    (targetMode === "live" && !existingTest)
-  ) {
-    res.cookies.set("stripe_mode", targetMode, COOKIE_OPTIONS);
-  }
+  // Définir le mode automatiquement sur celui de la clé configurée
+  res.cookies.set("stripe_mode", targetMode, COOKIE_OPTIONS);
 
   // Nettoyer l'ancien cookie legacy s'il existe
   if (req.cookies.get("stripe_secret_key")?.value) {
     res.cookies.set("stripe_secret_key", "", { ...COOKIE_OPTIONS, maxAge: 0 });
   }
 
-  console.log(`[Stripe Config] Cookie ${cookieName} défini.`);
+  console.log(`[Stripe Config] Cookie ${cookieName} défini, mode → ${targetMode}.`);
   return res;
 }

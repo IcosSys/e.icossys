@@ -40,8 +40,21 @@ export async function POST(req: NextRequest) {
       ],
       success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/cancel`,
+      customer_creation: "always",
+      billing_address_collection: "required",
+      shipping_address_collection: {
+        allowed_countries: ["FR", "BE", "CH", "LU", "MC"],
+      },
+      phone_number_collection: {
+        enabled: true,
+      },
       metadata: {
         source: "e-icossys",
+      },
+      custom_text: {
+        submit: {
+          message: "Vous recevrez un email de confirmation avec le suivi de votre commande.",
+        },
       },
     });
 

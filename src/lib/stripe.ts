@@ -46,6 +46,13 @@ export async function getStripeKeyForMode(mode: StripeMode): Promise<string | nu
   return readCookie(cookieName);
 }
 
+// Détecte le mode à partir du préfixe de la clé
+export function detectModeFromKey(secretKey: string): StripeMode | null {
+  if (secretKey.startsWith("sk_test_")) return "test";
+  if (secretKey.startsWith("sk_live_")) return "live";
+  return null;
+}
+
 // Retourne le statut complet (sans jamais exposer les clés)
 export async function getStripeStatus(): Promise<{
   connected: boolean;
@@ -53,6 +60,7 @@ export async function getStripeStatus(): Promise<{
   testKey: boolean;
   liveKey: boolean;
   lastFour?: string;
+  keyType: "test" | "live" | null;
 }> {
   const mode = await getStripeMode();
   const testKey = await getStripeKeyForMode("test");
@@ -60,7 +68,7 @@ export async function getStripeStatus(): Promise<{
   const activeKey = mode === "live" ? liveKey : testKey;
 
   if (!activeKey) {
-    return { connected: false, mode, testKey: !!testKey, liveKey: !!liveKey };
+    return { connected: false, mode, testKey: !!testKey, liveKey: !!liveKey, keyType: null };
   }
 
   return {
@@ -69,6 +77,7 @@ export async function getStripeStatus(): Promise<{
     testKey: !!testKey,
     liveKey: !!liveKey,
     lastFour: activeKey.slice(-4),
+    keyType: mode,
   };
 }
 
