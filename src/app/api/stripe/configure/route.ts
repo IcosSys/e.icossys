@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveStripeKey, getStripe } from "@/lib/stripe";
+import Stripe from "stripe";
+import { saveStripeKey } from "@/lib/stripe";
 
 export async function POST(req: NextRequest) {
   const { secretKey } = await req.json();

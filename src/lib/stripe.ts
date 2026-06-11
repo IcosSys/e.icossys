@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "fs";
 import { join } from "path";
 
 const STORE_DIR = join(process.cwd(), "data");
@@ -62,7 +62,6 @@ export function saveStripeKey(secretKey: string): { configuredAt: string; lastFo
 export function removeStripeKey(): void {
   try {
     if (existsSync(STORE_FILE)) {
-      const { unlinkSync } = require("fs");
       unlinkSync(STORE_FILE);
     }
   } catch {
