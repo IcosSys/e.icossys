@@ -1,17 +1,17 @@
 import Stripe from "stripe";
-import { cookies } from "next/headers";
 
 const COOKIE_NAME = "stripe_secret_key";
 
 // Retourne la clé depuis le cookie (serveur uniquement)
-export function getStripeSecretKey(): string | null {
-  const cookieStore = cookies();
+export async function getStripeSecretKey(): Promise<string | null> {
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
   return cookieStore.get(COOKIE_NAME)?.value || null;
 }
 
 // Retourne le statut sans la clé (jamais exposée au client)
-export function getStripeStatus(): { connected: boolean; lastFour?: string } {
-  const key = getStripeSecretKey();
+export async function getStripeStatus(): Promise<{ connected: boolean; lastFour?: string }> {
+  const key = await getStripeSecretKey();
   if (!key) return { connected: false };
   return {
     connected: true,
@@ -22,8 +22,8 @@ export function getStripeStatus(): { connected: boolean; lastFour?: string } {
 // Instance Stripe avec la clé du commerçant (serveur uniquement)
 let _stripe: Stripe | null = null;
 
-export function getStripe(): Stripe | null {
-  const secretKey = getStripeSecretKey();
+export async function getStripe(): Promise<Stripe | null> {
+  const secretKey = await getStripeSecretKey();
   if (!secretKey) return null;
   if (!_stripe) {
     _stripe = new Stripe(secretKey, { typescript: true });
