@@ -1,75 +1,25 @@
 import Stripe from "stripe";
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "fs";
-import { join } from "path";
+import { cookies } from "next/headers";
 
-const STORE_DIR = join(process.cwd(), "data");
-const STORE_FILE = join(STORE_DIR, "stripe-config.json");
+const COOKIE_NAME = "stripe_secret_key";
 
-interface StripeConfig {
-  secretKey: string;
-  configuredAt: string;
-}
-
-function ensureStoreDir() {
-  if (!existsSync(STORE_DIR)) {
-    mkdirSync(STORE_DIR, { recursive: true });
-  }
-}
-
-// Retourne la config sans la clé secrète (jamais exposée au client)
-export function getStripeStatus(): { connected: boolean; configuredAt?: string; lastFour?: string } {
-  try {
-    if (!existsSync(STORE_FILE)) return { connected: false };
-    const raw = readFileSync(STORE_FILE, "utf-8");
-    const config = JSON.parse(raw) as StripeConfig;
-    return {
-      connected: true,
-      configuredAt: config.configuredAt,
-      lastFour: config.secretKey.slice(-4),
-    };
-  } catch {
-    return { connected: false };
-  }
-}
-
-// Retourne la clé complète (serveur uniquement, pour créer des sessions)
+// Retourne la clé depuis le cookie (serveur uniquement)
 export function getStripeSecretKey(): string | null {
-  try {
-    if (!existsSync(STORE_FILE)) return null;
-    const raw = readFileSync(STORE_FILE, "utf-8");
-    const config = JSON.parse(raw) as StripeConfig;
-    return config.secretKey;
-  } catch {
-    return null;
-  }
+  const cookieStore = cookies();
+  return cookieStore.get(COOKIE_NAME)?.value || null;
 }
 
-// Sauvegarde la clé du commerçant
-export function saveStripeKey(secretKey: string): { configuredAt: string; lastFour: string } {
-  ensureStoreDir();
-  const config: StripeConfig = {
-    secretKey,
-    configuredAt: new Date().toISOString(),
-  };
-  writeFileSync(STORE_FILE, JSON.stringify(config, null, 2), "utf-8");
+// Retourne le statut sans la clé (jamais exposée au client)
+export function getStripeStatus(): { connected: boolean; lastFour?: string } {
+  const key = getStripeSecretKey();
+  if (!key) return { connected: false };
   return {
-    configuredAt: config.configuredAt,
-    lastFour: secretKey.slice(-4),
+    connected: true,
+    lastFour: key.slice(-4),
   };
 }
 
-// Supprime la clé
-export function removeStripeKey(): void {
-  try {
-    if (existsSync(STORE_FILE)) {
-      unlinkSync(STORE_FILE);
-    }
-  } catch {
-    // silencieux
-  }
-}
-
-// Instance Stripe avec la clé du commerçant (lazy, serveur uniquement)
+// Instance Stripe avec la clé du commerçant (serveur uniquement)
 let _stripe: Stripe | null = null;
 
 export function getStripe(): Stripe | null {

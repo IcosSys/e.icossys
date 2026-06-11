@@ -5,7 +5,6 @@ import { useEffect, useState, Suspense, useCallback } from "react";
 
 interface StripeStatus {
   connected: boolean;
-  configuredAt?: string;
   lastFour?: string;
 }
 
@@ -42,20 +41,25 @@ function AdminDashboardContent() {
     if (!keyInput.trim()) return;
 
     setSaving(true);
-    const res = await fetch("/api/stripe/configure", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ secretKey: keyInput.trim() }),
-    });
-    const data = await res.json();
-    setSaving(false);
+    try {
+      const res = await fetch("/api/stripe/configure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secretKey: keyInput.trim() }),
+      });
+      const data = await res.json();
+      setSaving(false);
 
-    if (res.ok) {
-      setFormSuccess(true);
-      setKeyInput("");
-      fetchStatus();
-    } else {
-      setFormError(data.error || "Erreur");
+      if (res.ok) {
+        setFormSuccess(true);
+        setKeyInput("");
+        fetchStatus();
+      } else {
+        setFormError(data.error || "Erreur");
+      }
+    } catch {
+      setSaving(false);
+      setFormError("Erreur de connexion au serveur.");
     }
   };
 
@@ -180,9 +184,8 @@ function AdminDashboardContent() {
                 <p className="text-sm text-gray-600">
                   Les paiements seront reçus directement sur votre compte Stripe.
                 </p>
-                <div className="text-xs text-gray-400 space-y-1">
+                <div className="text-xs text-gray-400">
                   <p>Clé : sk_...{stripeStatus.lastFour}</p>
-                  <p>Configuré le : {stripeStatus.configuredAt ? new Date(stripeStatus.configuredAt).toLocaleDateString("fr-FR") : "—"}</p>
                 </div>
                 <button
                   onClick={handleDisconnect}
