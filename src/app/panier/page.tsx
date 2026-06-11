@@ -235,6 +235,25 @@ export default function PanierPage() {
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-100 bg-gray-50/50 mt-auto">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-gray-900 flex items-center justify-center">
+              <span className="text-white text-[8px] font-bold">eI</span>
+            </div>
+            <span className="text-xs text-gray-400">e.IcosSys</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions générales</Link>
+            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+            <Link href="/mentions-legales" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Mentions légales</Link>
+            <span className="text-[11px] text-gray-200">·</span>
+            <p className="text-[11px] text-gray-300">Paiement sécurisé par Stripe</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

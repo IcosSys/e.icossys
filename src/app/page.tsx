@@ -193,6 +193,7 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions générales</Link>
             <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+            <Link href="/mentions-legales" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Mentions légales</Link>
             <span className="text-[11px] text-gray-200">·</span>
             <p className="text-[11px] text-gray-300">Paiement sécurisé par Stripe</p>
           </div>

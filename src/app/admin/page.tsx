@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense, useCallback, useRef, useMemo } from "react";
+import { ALL_COUNTRIES } from "@/lib/countries";
 
 type StripeMode = "test" | "live";
 
@@ -229,10 +230,27 @@ function AdminDashboardContent() {
   const notifPanelRef = useRef<HTMLDivElement>(null);
   const notifLoadedRef = useRef(false);
 
+  // Webhook config
+  const [webhookConfigured, setWebhookConfigured] = useState(false);
+  const [webhookHint, setWebhookHint] = useState<string | null>(null);
+  const [webhookInput, setWebhookInput] = useState("");
+  const [webhookSaving, setWebhookSaving] = useState(false);
+  const [webhookSuccess, setWebhookSuccess] = useState(false);
+  const [webhookError, setWebhookError] = useState("");
+  // Suivi des IDs de notifications webhook déjà intégrées (pour éviter doublons avec le polling commande)
+  const webhookNotifIdsRef = useRef<Set<string>>(new Set());
+
   // Shipping config
   const [shippingOpts, setShippingOpts] = useState<ShippingOpt[]>([]);
   const [shippingSaving, setShippingSaving] = useState(false);
   const [shippingLoaded, setShippingLoaded] = useState(false);
+  const shippingInitializedRef = useRef(false);
+
+  // Countries config
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  const [countriesLoaded, setCountriesLoaded] = useState(false);
+  const [countriesSaving, setCountriesSaving] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
 
   // Products
   interface AdminProduct {
@@ -370,17 +388,144 @@ function AdminDashboardContent() {
     .finally(() => setOrdersLoading(false));
   }, [saveNotifications]);
 
-  const fetchShippingConfig = useCallback(() => {
+  const fetchWebhookConfig = useCallback(() => {
+    fetch("/api/webhook/config").then(r => r.json()).then(d => {
+      setWebhookConfigured(d.configured);
+      setWebhookHint(d.hint || null);
+    }).catch(() => {});
+  }, []);
+
+  const handleSaveWebhook = async () => {
+    const trimmed = webhookInput.trim();
+    if (!trimmed) return;
+    setWebhookSaving(true);
+    setWebhookError("");
+    setWebhookSuccess(false);
+    try {
+      const res = await fetch("/api/webhook/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setWebhookError(data.error || "Erreur");
+      } else {
+        setWebhookConfigured(true);
+        setWebhookHint(data.hint);
+        setWebhookInput("");
+        setWebhookSuccess(true);
+        setTimeout(() => setWebhookSuccess(false), 3000);
+      }
+    } catch {
+      setWebhookError("Erreur réseau.");
+    } finally {
+      setWebhookSaving(false);
+    }
+  };
+
+  const fetchShippingConfig = useCallback((force = false) => {
+    if (shippingInitializedRef.current && !force) return;
     fetch("/api/shipping/config").then(r => r.json()).then(d => {
       setShippingOpts(d.options || []);
       setShippingLoaded(true);
+      shippingInitializedRef.current = true;
     }).catch(() => {});
   }, []);
 
   // Load notifications from localStorage on mount
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
-  useEffect(() => { if (stripeStatus?.connected) { fetchOrders(); fetchShippingConfig(); } }, [stripeStatus?.connected, fetchOrders, fetchShippingConfig]);
+  useEffect(() => { if (stripeStatus?.connected) { fetchOrders(); fetchShippingConfig(); fetchWebhookConfig(); } }, [stripeStatus?.connected, fetchOrders, fetchShippingConfig, fetchWebhookConfig]);
+
+  // Polling rapide des notifications webhook (5s) quand Stripe est connecté
+  useEffect(() => {
+    if (!stripeStatus?.connected || !webhookConfigured) return;
+    let isFirstPoll = true;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/notifications");
+        const data = await res.json();
+        const serverNotifs: Array<{ id: string; orderId: string; customerName: string | null; customerEmail: string | null; amount: number; currency: string; productName: string | null; timestamp: number; read: boolean }> = data.notifications || [];
+
+        if (serverNotifs.length === 0) return;
+
+        // Filtrer les notifications pas encore intégrées localement
+        const fresh = serverNotifs.filter(n => !webhookNotifIdsRef.current.has(n.id));
+
+        // Toujours mettre à jour le set de tracking des IDs
+        serverNotifs.forEach(n => webhookNotifIdsRef.current.add(n.id));
+
+        // Au premier poll, on synchronise silencieusement (pas de toast)
+        if (isFirstPoll) {
+          isFirstPoll = false;
+          if (fresh.length > 0) {
+            setNotifications(prev => {
+              const existingIds = new Set(prev.map(p => p.id));
+              const newNotifs = fresh
+                .filter(n => !existingIds.has(n.id))
+                .map(n => ({
+                  id: n.id,
+                  customerName: n.customerName,
+                  customerEmail: n.customerEmail,
+                  amount: n.amount,
+                  currency: n.currency,
+                  productName: n.productName,
+                  time: n.timestamp,
+                  read: n.read,
+                }));
+              if (newNotifs.length === 0) return prev;
+              const updated = [...newNotifs, ...prev].slice(0, 100);
+              saveNotifications(updated);
+              return updated;
+            });
+          }
+          return;
+        }
+
+        if (fresh.length > 0) {
+          setNotifications(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newNotifs = fresh
+              .filter(n => !existingIds.has(n.id))
+              .map(n => ({
+                id: n.id,
+                customerName: n.customerName,
+                customerEmail: n.customerEmail,
+                amount: n.amount,
+                currency: n.currency,
+                productName: n.productName,
+                time: n.timestamp,
+                read: n.read,
+              }));
+            if (newNotifs.length === 0) return prev;
+            const updated = [...newNotifs, ...prev].slice(0, 100);
+            saveNotifications(updated);
+            return updated;
+          });
+
+          // Toast pour le plus récent
+          const latest = fresh[0];
+          setToastNotif(`${latest.customerName || latest.customerEmail || "Client"} — ${latest.productName || "Commande"} — ${fmtCurrency(latest.amount, latest.currency)}`);
+          setTimeout(() => setToastNotif(null), 5000);
+          setBellRinging(true);
+          setTimeout(() => setBellRinging(false), 800);
+        }
+      } catch {}
+    };
+    poll(); // immédiat au montage
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [stripeStatus?.connected, webhookConfigured, saveNotifications]);
+
+  // Fetch countries config on mount
+  useEffect(() => {
+    if (!stripeStatus?.connected) return;
+    fetch("/api/countries").then(r => r.json()).then(d => {
+      setSelectedCountries(d.countries || []);
+      setCountriesLoaded(true);
+    }).catch(() => {});
+  }, [stripeStatus?.connected]);
 
   // Auto-refresh 15s avec cooldown 10s après changement de statut
   useEffect(() => {
@@ -633,9 +778,50 @@ function AdminDashboardContent() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ options: shippingOpts }),
       });
-      if (!res.ok) alert((await res.json()).error || "Erreur");
+      if (!res.ok) { alert((await res.json()).error || "Erreur"); return; }
+      // Re-fetch to confirm saved state
+      await fetch("/api/shipping/config").then(r => r.json()).then(d => {
+        setShippingOpts(d.options || []);
+      });
     } catch { alert("Erreur de connexion."); }
     finally { setShippingSaving(false); }
+  };
+
+  // Countries handlers
+  const toggleCountry = (code: string) => {
+    setSelectedCountries(prev =>
+      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    );
+  };
+  const selectAllCountries = () => {
+    const q = countrySearch.toLowerCase().trim();
+    const filtered = q ? ALL_COUNTRIES.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)) : ALL_COUNTRIES;
+    setSelectedCountries(prev => {
+      const set = new Set(prev);
+      for (const c of filtered) set.add(c.code);
+      return Array.from(set);
+    });
+  };
+  const deselectAllCountries = () => {
+    const q = countrySearch.toLowerCase().trim();
+    const filtered = q ? ALL_COUNTRIES.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)) : ALL_COUNTRIES;
+    const removeSet = new Set(filtered.map(c => c.code));
+    setSelectedCountries(prev => prev.filter(c => !removeSet.has(c)));
+  };
+  const saveCountries = async () => {
+    if (selectedCountries.length === 0) { alert("Sélectionnez au moins un pays."); return; }
+    setCountriesSaving(true);
+    try {
+      const res = await fetch("/api/countries", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ countries: selectedCountries }),
+      });
+      if (!res.ok) { alert((await res.json()).error || "Erreur"); return; }
+      // Re-fetch to confirm
+      const d = await (await fetch("/api/countries")).json();
+      setSelectedCountries(d.countries || []);
+    } catch { alert("Erreur de connexion."); }
+    finally { setCountriesSaving(false); }
   };
 
   // --- Products ---
@@ -748,6 +934,11 @@ function AdminDashboardContent() {
   const avgOrder = orders.length > 0 ? Math.round(totalRevenue / orders.length) : 0;
   const pendingCount = orders.filter(o => o.orderStatus === "paid").length;
   const activeShipCount = shippingOpts.filter(o => o.active).length;
+  const filteredCountryList = useMemo(() => {
+    const q = countrySearch.toLowerCase().trim();
+    if (!q) return ALL_COUNTRIES;
+    return ALL_COUNTRIES.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q));
+  }, [countrySearch]);
   const activeProductCount = adminProducts.filter(p => p.active).length;
 
   // ==================== RENDER ====================
@@ -943,6 +1134,82 @@ function AdminDashboardContent() {
           </div>
         </section>
 
+        {/* WEBHOOK CONFIG */}
+        {stripeStatus?.connected && (
+          <section>
+            <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em] mb-2.5 px-1">Webhook Stripe</h2>
+            <div className="bg-white rounded-2xl border border-gray-200/60 p-4 sm:p-5">
+              <div className="flex items-start sm:items-center justify-between gap-3 mb-4 flex-col sm:flex-row">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${webhookConfigured ? "bg-emerald-100" : "bg-gray-100"}`}>
+                    <svg className={`w-5 h-5 ${webhookConfigured ? "text-emerald-600" : "text-gray-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-900 text-sm">Notifications temps réel</span>
+                      {webhookConfigured ? (
+                        <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />Configuré
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">Non configuré</span>
+                      )}
+                    </div>
+                    {webhookConfigured && webhookHint && <p className="text-[10px] text-gray-400 mt-0.5 font-mono">whsec_...{webhookHint.replace("...", "")}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {!webhookConfigured && !webhookInput && (
+                <form onSubmit={e => { e.preventDefault(); handleSaveWebhook(); }} className="space-y-2">
+                  <input type="password" value={webhookInput} onChange={e => { setWebhookInput(e.target.value); setWebhookError(""); setWebhookSuccess(false); }}
+                    placeholder="whsec_..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-400 min-h-[44px] bg-gray-50/50" />
+                  {webhookError && <p className="text-[11px] text-red-600 font-medium">{webhookError}</p>}
+                  {webhookSuccess && <p className="text-[11px] text-emerald-600 font-medium">Secret webhook enregistré.</p>}
+                  <button type="submit" disabled={webhookSaving || !webhookInput.trim()}
+                    className="px-5 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 disabled:opacity-40 min-h-[44px]">
+                    {webhookSaving ? "Enregistrement..." : "Enregistrer"}
+                  </button>
+                </form>
+              )}
+
+              {webhookConfigured && !webhookInput && (
+                <button onClick={() => { setWebhookInput(" "); setWebhookSuccess(false); setWebhookError(""); }}
+                  className="text-[11px] font-semibold text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                  Modifier le secret
+                </button>
+              )}
+
+              {webhookInput && (
+                <form onSubmit={e => { e.preventDefault(); handleSaveWebhook(); }} className="space-y-2">
+                  <input type="password" value={webhookInput === " " ? "" : webhookInput} onChange={e => { setWebhookInput(e.target.value); setWebhookError(""); setWebhookSuccess(false); }}
+                    placeholder="whsec_..." autoFocus
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-400 min-h-[44px] bg-gray-50/50" />
+                  {webhookError && <p className="text-[11px] text-red-600 font-medium">{webhookError}</p>}
+                  {webhookSuccess && <p className="text-[11px] text-emerald-600 font-medium">Secret webhook mis à jour.</p>}
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={webhookSaving || !webhookInput.trim()}
+                      className="px-5 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 disabled:opacity-40 min-h-[44px]">
+                      {webhookSaving ? "Enregistrement..." : "Enregistrer"}
+                    </button>
+                    <button type="button" onClick={() => { setWebhookInput(""); setWebhookError(""); setWebhookSuccess(false); }}
+                      className="px-4 py-2.5 text-sm text-gray-500 font-medium">Annuler</button>
+                  </div>
+                </form>
+              )}
+
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Pour activer les notifications en temps réel, configurez un webhook dans votre <span className="font-medium text-gray-600">Dashboard Stripe</span> :<br />
+                  <span className="font-mono text-[10px] text-gray-500 mt-1 inline-block">URL : {typeof window !== "undefined" ? `${window.location.origin}/api/webhook/stripe` : "..."}</span><br />
+                  <span className="font-mono text-[10px] text-gray-500">Événement : <span className="text-gray-700 font-semibold">checkout.session.completed</span></span>
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* SHIPPING CONFIG */}
         {stripeStatus?.connected && (
           <section>
@@ -1004,6 +1271,76 @@ function AdminDashboardContent() {
                   {shippingSaving ? "Sauvegarde..." : "Sauvegarder"}
                 </button>
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* COUNTRIES CONFIG */}
+        {stripeStatus?.connected && (
+          <section>
+            <div className="flex items-center justify-between mb-2.5 px-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em]">Pays de livraison</h2>
+                {countriesLoaded && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{selectedCountries.length} pays</span>
+                )}
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-200/60 p-4 sm:p-5">
+              <p className="text-[11px] text-gray-400 mb-4">Sélectionnez les pays dans lesquels vous proposez la livraison.</p>
+              {!countriesLoaded ? (
+                <div className="space-y-2 animate-pulse">
+                  {[1, 2, 3].map(i => <div key={i} className="h-8 bg-gray-100 rounded-lg" />)}
+                </div>
+              ) : (
+                <>
+                  <div className="relative mb-3">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+                    <input
+                      type="text"
+                      placeholder="Rechercher un pays..."
+                      value={countrySearch}
+                      onChange={e => setCountrySearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <button onClick={selectAllCountries} className="text-[11px] font-semibold text-violet-600 hover:text-violet-700 px-3 py-1.5 rounded-lg hover:bg-violet-50 transition-colors">
+                      Tout sélectionner
+                    </button>
+                    <span className="text-gray-300">·</span>
+                    <button onClick={deselectAllCountries} className="text-[11px] font-semibold text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                      Tout désélectionner
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1 max-h-64 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200">
+                    {filteredCountryList.map(country => {
+                      const checked = selectedCountries.includes(country.code);
+                      return (
+                        <label key={country.code} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${checked ? "bg-violet-50 text-violet-900" : "hover:bg-gray-50 text-gray-700"}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCountry(country.code)}
+                            className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500/20 accent-violet-600"
+                          />
+                          <span className="font-medium">{country.name}</span>
+                          <span className="text-[10px] text-gray-400 font-mono ml-auto">{country.code}</span>
+                        </label>
+                      );
+                    })}
+                    {filteredCountryList.length === 0 && (
+                      <div className="col-span-full text-center text-xs text-gray-400 py-4">Aucun pays trouvé.</div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end mt-4 pt-3 border-t border-gray-100">
+                    <button onClick={saveCountries} disabled={countriesSaving || selectedCountries.length === 0}
+                      className="px-5 py-2 bg-violet-600 text-white text-xs font-semibold rounded-xl hover:bg-violet-700 disabled:opacity-40 transition-colors min-h-[38px]">
+                      {countriesSaving ? "Sauvegarde..." : "Sauvegarder"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </section>
         )}

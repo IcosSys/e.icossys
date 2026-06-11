@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { getActiveShippingOptions } from "@/lib/shipping";
+import { getShippingCountries } from "@/lib/countries-config";
 
 interface LineItemInput {
   productName: string;
@@ -69,14 +70,7 @@ export async function POST(req: NextRequest) {
       billing_address_collection: "required",
       phone_number_collection: { enabled: true },
       shipping_address_collection: {
-        allowed_countries: [
-          "FR", "BE", "CH", "LU", "MC",
-          "DE", "IT", "ES", "NL", "AT", "PT",
-          "GB", "IE", "DK", "SE", "FI",
-          "PL", "CZ", "RO", "HU", "BG",
-          "HR", "SI", "SK", "LT", "LV", "EE",
-          "GR", "CY", "MT",
-        ],
+        allowed_countries: (await getShippingCountries()) as any,
       },
       success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/cancel`,
