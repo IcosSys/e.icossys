@@ -1,3 +1,5 @@
+"use client";
+
 export default function Home() {
   const handleBuy = async () => {
     const res = await fetch("/api/checkout", {
