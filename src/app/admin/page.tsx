@@ -1,13 +1,43 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+
+interface StripeStatus {
+  connected: boolean;
+  stripeAccountId?: string;
+  connectedAt?: string;
+}
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Notification depuis le callback Stripe
+  const stripeConnected = searchParams.get("stripe_connected");
+  const stripeError = searchParams.get("stripe_error");
+
+  useEffect(() => {
+    fetch("/api/stripe/status")
+      .then((r) => r.json())
+      .then(setStripeStatus)
+      .catch(() => setStripeStatus({ connected: false }))
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleLogout = async () => {
     await fetch("/api/admin/logout", { method: "POST" });
     router.push("/admin/login");
+  };
+
+  const clearNotification = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("stripe_connected");
+    url.searchParams.delete("stripe_error");
+    window.history.replaceState({}, "", url.pathname);
   };
 
   return (
@@ -26,13 +56,42 @@ export default function AdminDashboard() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-10">
-        {/* Statut */}
+        {/* Statut admin */}
         <div className="mb-8 flex items-center gap-3">
           <span className="w-3 h-3 rounded-full bg-green-500" />
           <span className="text-sm font-medium text-gray-700">
             Administrateur connecté
           </span>
         </div>
+
+        {/* Notification Stripe */}
+        {stripeConnected && (
+          <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200 flex items-center justify-between">
+            <p className="text-sm text-green-800 font-medium">
+              Stripe connecté avec succès.
+            </p>
+            <button
+              onClick={clearNotification}
+              className="text-green-600 hover:text-green-800 text-lg leading-none"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
+        {stripeError && (
+          <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between">
+            <p className="text-sm text-red-800">
+              Erreur Stripe : {decodeURIComponent(stripeError)}
+            </p>
+            <button
+              onClick={clearNotification}
+              className="text-red-600 hover:text-red-800 text-lg leading-none"
+            >
+              &times;
+            </button>
+          </div>
+        )}
 
         {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -75,20 +134,62 @@ export default function AdminDashboard() {
             <p className="text-sm text-gray-500">Gestion des niveaux de stock.</p>
           </div>
 
-          {/* Stripe — En cours */}
-          <div className="bg-white rounded-xl border border-dashed border-gray-300 p-6">
+          {/* Stripe */}
+          <div className={`rounded-xl border p-6 ${
+            stripeStatus?.connected
+              ? "bg-white border-green-200"
+              : "bg-white border-gray-200"
+          }`}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                stripeStatus?.connected ? "bg-green-100" : "bg-gray-100"
+              }`}>
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                ) : (
+                  <svg className={`w-5 h-5 ${stripeStatus?.connected ? "text-green-600" : "text-gray-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                )}
               </div>
-              <h2 className="font-semibold text-gray-400">Stripe</h2>
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                En cours
-              </span>
+              <h2 className="font-semibold text-gray-900">Stripe</h2>
+              {loading ? null : stripeStatus?.connected ? (
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                  Connecté
+                </span>
+              ) : (
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                  Non connecté
+                </span>
+              )}
             </div>
-            <p className="text-sm text-gray-400">Intégration du système de paiement.</p>
+
+            {stripeStatus?.connected ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Compte Stripe connecté. Les paiements seront reçus directement sur votre compte.
+                </p>
+                <div className="text-xs text-gray-400 space-y-1">
+                  <p>ID : <span className="font-mono">{stripeStatus.stripeAccountId}</span></p>
+                  <p>Connecté le : {stripeStatus.connectedAt ? new Date(stripeStatus.connectedAt).toLocaleDateString("fr-FR") : "—"}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500">
+                  Connectez votre compte Stripe pour recevoir les paiements de vos clients.
+                </p>
+                <a
+                  href="/api/stripe/connect"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Connecter Stripe
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </main>
