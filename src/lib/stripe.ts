@@ -1,33 +1,13 @@
 import Stripe from "stripe";
-
-let _stripe: Stripe | null = null;
-
-export function getStripe(): Stripe {
-  if (!_stripe) {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error("STRIPE_SECRET_KEY n'est pas configuré.");
-    }
-    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      typescript: true,
-    });
-  }
-  return _stripe;
-}
-
-// --- Stockage du compte connecté ---
-// En attendant la base de données, le compte Stripe connecté
-// est stocké dans un fichier JSON local.
-// TODO: migrer vers Prisma/PostgreSQL quand la DB sera en place.
-
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const STORE_DIR = join(process.cwd(), "data");
-const STORE_FILE = join(STORE_DIR, "stripe-connected.json");
+const STORE_FILE = join(STORE_DIR, "stripe-config.json");
 
-interface ConnectedAccount {
-  stripeAccountId: string;
-  connectedAt: string;
+interface StripeConfig {
+  secretKey: string;
+  configuredAt: string;
 }
 
 function ensureStoreDir() {
@@ -36,32 +16,68 @@ function ensureStoreDir() {
   }
 }
 
-export function getConnectedAccount(): ConnectedAccount | null {
+// Retourne la config sans la clé secrète (jamais exposée au client)
+export function getStripeStatus(): { connected: boolean; configuredAt?: string; lastFour?: string } {
+  try {
+    if (!existsSync(STORE_FILE)) return { connected: false };
+    const raw = readFileSync(STORE_FILE, "utf-8");
+    const config = JSON.parse(raw) as StripeConfig;
+    return {
+      connected: true,
+      configuredAt: config.configuredAt,
+      lastFour: config.secretKey.slice(-4),
+    };
+  } catch {
+    return { connected: false };
+  }
+}
+
+// Retourne la clé complète (serveur uniquement, pour créer des sessions)
+export function getStripeSecretKey(): string | null {
   try {
     if (!existsSync(STORE_FILE)) return null;
     const raw = readFileSync(STORE_FILE, "utf-8");
-    return JSON.parse(raw) as ConnectedAccount;
+    const config = JSON.parse(raw) as StripeConfig;
+    return config.secretKey;
   } catch {
     return null;
   }
 }
 
-export function setConnectedAccount(accountId: string): ConnectedAccount {
+// Sauvegarde la clé du commerçant
+export function saveStripeKey(secretKey: string): { configuredAt: string; lastFour: string } {
   ensureStoreDir();
-  const data: ConnectedAccount = {
-    stripeAccountId: accountId,
-    connectedAt: new Date().toISOString(),
+  const config: StripeConfig = {
+    secretKey,
+    configuredAt: new Date().toISOString(),
   };
-  writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), "utf-8");
-  return data;
+  writeFileSync(STORE_FILE, JSON.stringify(config, null, 2), "utf-8");
+  return {
+    configuredAt: config.configuredAt,
+    lastFour: secretKey.slice(-4),
+  };
 }
 
-export function removeConnectedAccount(): void {
+// Supprime la clé
+export function removeStripeKey(): void {
   try {
     if (existsSync(STORE_FILE)) {
+      const { unlinkSync } = require("fs");
       unlinkSync(STORE_FILE);
     }
   } catch {
     // silencieux
   }
+}
+
+// Instance Stripe avec la clé du commerçant (lazy, serveur uniquement)
+let _stripe: Stripe | null = null;
+
+export function getStripe(): Stripe | null {
+  const secretKey = getStripeSecretKey();
+  if (!secretKey) return null;
+  if (!_stripe) {
+    _stripe = new Stripe(secretKey, { typescript: true });
+  }
+  return _stripe;
 }
