@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
 interface StripeStatus {
   connected: boolean;
@@ -9,14 +9,13 @@ interface StripeStatus {
   connectedAt?: string;
 }
 
-export default function AdminDashboard() {
+function AdminDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Notification depuis le callback Stripe
   const stripeConnected = searchParams.get("stripe_connected");
   const stripeError = searchParams.get("stripe_error");
 
@@ -194,5 +193,13 @@ export default function AdminDashboard() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function AdminDashboard() {
+  return (
+    <Suspense>
+      <AdminDashboardContent />
+    </Suspense>
   );
 }
