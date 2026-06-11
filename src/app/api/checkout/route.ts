@@ -44,20 +44,46 @@ export async function POST(req: NextRequest) {
       phone_number_collection: {
         enabled: true,
       },
-      // Livraison — shipping_options est OBLIGATOIRE pour que Stripe affiche
-      // le formulaire d'adresse de livraison
+      // Adresse de livraison — obligatoire pour afficher le formulaire
       shipping_address_collection: {
-        allowed_countries: ["FR", "BE", "CH", "LU", "MC", "DE", "IT", "ES", "NL", "AT", "PT"],
+        allowed_countries: [
+          "FR", "BE", "CH", "LU", "MC",
+          "DE", "IT", "ES", "NL", "AT", "PT",
+          "GB", "IE", "DK", "SE", "FI",
+        ],
       },
+      // Modes de livraison — La Poste / Colissimo / Chronopost
       shipping_options: [
         {
           shipping_rate_data: {
             type: "fixed_amount",
-            fixed_amount: { amount: 0, currency: "eur" },
-            display_name: "Livraison standard",
+            fixed_amount: { amount: 350, currency: "eur" },
+            display_name: "Lettre Suivie",
             delivery_estimate: {
               minimum: { unit: "business_day", value: 3 },
               maximum: { unit: "business_day", value: 7 },
+            },
+          },
+        },
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: 590, currency: "eur" },
+            display_name: "Colissimo Standard",
+            delivery_estimate: {
+              minimum: { unit: "business_day", value: 2 },
+              maximum: { unit: "business_day", value: 4 },
+            },
+          },
+        },
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: 1290, currency: "eur" },
+            display_name: "Chronopost Express",
+            delivery_estimate: {
+              minimum: { unit: "business_day", value: 1 },
+              maximum: { unit: "business_day", value: 2 },
             },
           },
         },
@@ -67,6 +93,9 @@ export async function POST(req: NextRequest) {
       metadata: {
         source: "e-icossys",
         order_status: "paid",
+        product_name: productName,
+        unit_price: String(price),
+        quantity: String(quantity),
       },
       custom_text: {
         submit: {

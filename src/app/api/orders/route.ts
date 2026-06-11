@@ -21,12 +21,21 @@ interface RawSession {
     carrier?: string | null;
     tracking_number?: string | null;
   } | null;
+  amount_shipping?: number | null;
+  shipping_cost?: {
+    amount: number | null;
+    shipping_rate?: {
+      display_name?: string | null;
+    } | null;
+  } | null;
   [key: string]: unknown;
 }
 
 interface OrderListItem {
   id: string;
   amount: number;
+  amountSubtotal: number | null;
+  amountShipping: number | null;
   currency: string;
   status: string;
   customerEmail: string | null;
@@ -38,6 +47,7 @@ interface OrderListItem {
   shippingCity: string | null;
   shippingCountry: string | null;
   shippingName: string | null;
+  shippingMethod: string | null;
 }
 
 // --- Helpers ---
@@ -63,6 +73,12 @@ function getOrderStatus(session: Stripe.Checkout.Session): string {
   return session.payment_status === "paid" ? "paid" : "pending";
 }
 
+function getProductName(session: Stripe.Checkout.Session): string | null {
+  const meta = session.metadata as Record<string, string> | null;
+  if (meta?.product_name) return meta.product_name;
+  return null;
+}
+
 // --- GET: list or single ---
 
 export async function GET(req: NextRequest) {
@@ -85,17 +101,28 @@ export async function GET(req: NextRequest) {
 
       const productObj = session.line_items?.data?.[0]?.price?.product;
       const productName =
-        productObj && typeof productObj === "object" && "name" in productObj
+        getProductName(session) ||
+        (productObj && typeof productObj === "object" && "name" in productObj
           ? (productObj as { name: string }).name
-          : session.line_items?.data?.[0]?.description || null;
+          : session.line_items?.data?.[0]?.description || null);
 
       const raw = session as unknown as RawSession;
       const shippingAddr = raw.shipping_details?.address as AddressData | undefined;
       const billing = session.customer_details?.address;
 
+      // Shipping method name from Stripe
+      const shippingMethodName = raw.shipping_cost?.shipping_rate?.display_name || null;
+      const shippingAmount = raw.shipping_cost?.amount ?? (session.total_details as any)?.breakdown?.shipping?.amount ?? null;
+
+      // Price breakdown
+      const unitPrice = session.metadata?.unit_price ? Number(session.metadata.unit_price) : null;
+      const quantity = session.metadata?.quantity ? Number(session.metadata.quantity) : null;
+
       return NextResponse.json({
         id: session.id,
         amount: session.amount_total,
+        amountSubtotal: session.amount_subtotal ?? null,
+        amountShipping: shippingAmount,
         currency: session.currency,
         status: session.status,
         paymentStatus: session.payment_status,
@@ -107,7 +134,10 @@ export async function GET(req: NextRequest) {
         shippingName: raw.shipping_details?.name || null,
         shippingAddress: fmtAddr(shippingAddr),
         billingAddress: fmtAddr(billing as AddressData | null),
+        shippingMethod: shippingMethodName,
         productName,
+        unitPrice,
+        quantity,
       });
     }
 
@@ -125,6 +155,8 @@ export async function GET(req: NextRequest) {
         return {
           id: s.id,
           amount: s.amount_total ?? 0,
+          amountSubtotal: s.amount_subtotal ?? null,
+          amountShipping: raw.shipping_cost?.amount ?? (s.total_details as any)?.breakdown?.shipping?.amount ?? null,
           currency: s.currency ?? "eur",
           status: s.status ?? "complete",
           customerEmail: s.customer_details?.email || null,
@@ -132,10 +164,11 @@ export async function GET(req: NextRequest) {
           paymentStatus: s.payment_status,
           orderStatus: getOrderStatus(s),
           created: s.created,
-          productName: null,
+          productName: getProductName(s),
           shippingCity: addr?.city || null,
           shippingCountry: addr?.country || null,
           shippingName: raw.shipping_details?.name || null,
+          shippingMethod: raw.shipping_cost?.shipping_rate?.display_name || null,
         };
       });
 
