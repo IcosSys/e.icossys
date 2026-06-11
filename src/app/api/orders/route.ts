@@ -22,10 +22,10 @@ export async function GET(req: NextRequest) {
         expand: ["line_items.data.price.product"],
       });
 
+      const productObj = session.line_items?.data?.[0]?.price?.product;
       const productName =
-        session.line_items?.data?.[0]?.price?.product &&
-        typeof session.line_items.data[0].price.product === "object"
-          ? session.line_items.data[0].price.product.name
+        productObj && typeof productObj === "object" && "name" in productObj
+          ? (productObj as { name: string }).name
           : session.line_items?.data?.[0]?.description || null;
 
       return NextResponse.json({
@@ -49,10 +49,10 @@ export async function GET(req: NextRequest) {
       });
 
       const orders = sessions.data.map((s) => {
+        const productObj = s.line_items?.data?.[0]?.price?.product;
         const productName =
-          s.line_items?.data?.[0]?.price?.product &&
-          typeof s.line_items.data[0].price.product === "object"
-            ? s.line_items.data[0].price.product.name
+          productObj && typeof productObj === "object" && "name" in productObj
+            ? (productObj as { name: string }).name
             : s.line_items?.data?.[0]?.description || null;
 
         return {

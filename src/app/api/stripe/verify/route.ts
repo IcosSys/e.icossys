@@ -1,26 +1,22 @@
 import { NextResponse } from "next/server";
-import { getStripe, getStripeSecretKey } from "@/lib/stripe";
+import { getStripe, getStripeStatus, getStripeSecretKey } from "@/lib/stripe";
 
-// Endpoint de diagnostic — vérifie l'intégrité complète du pipeline Stripe
 export async function GET() {
-  const diagnostics: Record<string, string | boolean | object> = {};
+  const diagnostics: Record<string, string | boolean | number | object | null> = {};
 
-  // 1. Vérifier la présence du cookie
   const secretKey = await getStripeSecretKey();
-  diagnostics.cookiePresent = !!secretKey;
-  diagnostics.keyPrefix = secretKey ? secretKey.slice(0, 7) + "..." : null;
-  diagnostics.keySuffix = secretKey ? "..." + secretKey.slice(-4) : null;
-  diagnostics.keyType = secretKey?.startsWith("sk_test_")
-    ? "TEST"
-    : secretKey?.startsWith("sk_live_")
-      ? "LIVE"
-      : null;
+  const status = await getStripeStatus();
 
-  // 2. Vérifier l'instance Stripe
+  diagnostics.mode = status.mode;
+  diagnostics.connected = status.connected;
+  diagnostics.testKeySet = status.testKey;
+  diagnostics.liveKeySet = status.liveKey;
+  diagnostics.activeKeyPrefix = secretKey ? secretKey.slice(0, 7) + "..." : null;
+  diagnostics.activeKeySuffix = secretKey ? "..." + secretKey.slice(-4) : null;
+
   const stripe = await getStripe();
   diagnostics.stripeInstanceCreated = !!stripe;
 
-  // 3. Tester un appel API léger (balance)
   if (stripe) {
     try {
       const balance = await stripe.balance.retrieve();
@@ -34,10 +30,9 @@ export async function GET() {
       diagnostics.balanceCall = `FAILED: ${message}`;
     }
 
-    // 4. Lister les dernières sessions (pour vérifier que le compte a des données)
     try {
       const sessions = await stripe.checkout.sessions.list({ limit: 5 });
-      diagnostics.recentSessions = sessions.data.length;
+      diagnostics.recentSessionsCount = sessions.data.length;
       diagnostics.sessions = sessions.data.map((s) => ({
         id: s.id,
         status: s.status,
