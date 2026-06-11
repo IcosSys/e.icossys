@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
   try {
     const params: Parameters<typeof stripe.checkout.sessions.create>[0] = {
       mode: "payment",
+      locale: "fr",
       line_items: lineItems.map(item => ({
         price_data: {
           currency: "eur",
@@ -72,6 +73,9 @@ export async function POST(req: NextRequest) {
           "FR", "BE", "CH", "LU", "MC",
           "DE", "IT", "ES", "NL", "AT", "PT",
           "GB", "IE", "DK", "SE", "FI",
+          "PL", "CZ", "RO", "HU", "BG",
+          "HR", "SI", "SK", "LT", "LV", "EE",
+          "GR", "CY", "MT",
         ],
       },
       success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,

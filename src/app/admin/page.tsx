@@ -324,28 +324,45 @@ function AdminDashboardContent() {
       const newOrders: Order[] = data.orders || [];
       const oldIds = prevOrdersRef.current;
       const newIds = newOrders.map((o: Order) => o.id).join(",");
-      if (oldIds && newIds !== oldIds) {
-        const oldSet = new Set(oldIds.split(","));
-        const fresh = newOrders.filter((o: Order) => !oldSet.has(o.id));
-        if (fresh.length > 0) {
-          setNotifications(prev => {
-            const updated = [
-              ...fresh.map((order: Order) => ({
-                id: order.id, customerName: order.customerName, customerEmail: order.customerEmail,
-                amount: order.amount, currency: order.currency, productName: order.productName,
-                time: Date.now(), read: false,
-              })),
-              ...prev,
-            ].slice(0, 100);
-            saveNotifications(updated);
-            return updated;
-          });
-          const latest = fresh[0];
-          setToastNotif(`${latest.customerName || latest.customerEmail || "Client"} — ${latest.productName || "Commande"} — ${fmtCurrency(latest.amount, latest.currency)}`);
-          setTimeout(() => setToastNotif(null), 5000);
-          setBellRinging(true);
-          setTimeout(() => setBellRinging(false), 800);
-        }
+
+      // Détecter les nouvelles commandes (même au 1er chargement via localStorage)
+      let fresh: Order[] = [];
+      let referenceIds = oldIds;
+
+      if (!oldIds) {
+        // Premier chargement : comparer avec les IDs sauvegardés en localStorage
+        try {
+          const savedIds = localStorage.getItem("e-icossys-last-order-ids");
+          referenceIds = savedIds || "";
+        } catch {}
+      }
+
+      if (referenceIds && newIds !== referenceIds) {
+        const oldSet = new Set(referenceIds.split(","));
+        fresh = newOrders.filter((o: Order) => !oldSet.has(o.id));
+      }
+
+      // Sauvegarder les IDs actuels pour la prochaine fois
+      try { localStorage.setItem("e-icossys-last-order-ids", newIds); } catch {}
+
+      if (fresh.length > 0) {
+        setNotifications(prev => {
+          const updated = [
+            ...fresh.map((order: Order) => ({
+              id: order.id, customerName: order.customerName, customerEmail: order.customerEmail,
+              amount: order.amount, currency: order.currency, productName: order.productName,
+              time: Date.now(), read: false,
+            })),
+            ...prev,
+          ].slice(0, 100);
+          saveNotifications(updated);
+          return updated;
+        });
+        const latest = fresh[0];
+        setToastNotif(`${latest.customerName || latest.customerEmail || "Client"} — ${latest.productName || "Commande"} — ${fmtCurrency(latest.amount, latest.currency)}`);
+        setTimeout(() => setToastNotif(null), 5000);
+        setBellRinging(true);
+        setTimeout(() => setBellRinging(false), 800);
       }
       prevOrdersRef.current = newIds;
       setOrders(newOrders);
@@ -937,38 +954,41 @@ function AdminDashboardContent() {
             </div>
             <div className="bg-white rounded-2xl border border-gray-200/60 p-4 sm:p-5">
               <p className="text-[11px] text-gray-400 mb-4">Activez ou désactivez les modes de livraison proposés au checkout. Modifiez les prix et délais.</p>
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {shippingOpts.map((opt, idx) => (
-                  <div key={opt.id} className={`rounded-xl border p-3 sm:p-4 transition-colors ${opt.active ? "border-gray-200 bg-white" : "border-gray-100 bg-gray-50/50 opacity-60"}`}>
-                    <div className="flex items-center gap-3">
+                  <div key={opt.id} className={`rounded-xl border p-4 transition-colors ${opt.active ? "border-gray-200 bg-white" : "border-gray-100 bg-gray-50/50 opacity-60"}`}>
+                    <div className="flex items-start gap-3">
                       <button onClick={() => updateShipping(idx, { active: !opt.active })}
-                        className="relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 focus:outline-none"
+                        className="relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 mt-1 focus:outline-none"
                         style={{ backgroundColor: opt.active ? "#7c3aed" : "#d1d5db" }}>
                         <span className={`absolute top-[3px] left-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${opt.active ? "translate-x-[18px]" : ""}`} />
                       </button>
-                      <div className="flex-1 min-w-0">
-                        <input type="text" value={opt.name} onChange={e => updateShipping(idx, { name: e.target.value, id: slugify(e.target.value) || opt.id })}
-                          className="w-full text-sm font-semibold text-gray-900 bg-transparent border-0 focus:outline-none focus:ring-0 p-0 truncate" />
-                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-400">Prix :</span>
-                            <input type="number" step="0.10" min="0" value={(opt.price / 100).toFixed(2)} onChange={e => updateShipping(idx, { price: Math.round(parseFloat(e.target.value) * 100) || 0 })}
-                              className="w-16 text-xs font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-md px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-violet-300" />
-                            <span className="text-[10px] text-gray-400">EUR</span>
+                      <div className="flex-1 min-w-0 space-y-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Intitulé</label>
+                          <input type="text" value={opt.name} onChange={e => updateShipping(idx, { name: e.target.value, id: slugify(e.target.value) || opt.id })}
+                            className="w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Prix (EUR)</label>
+                            <input type="number" step="0.01" min="0" value={(opt.price / 100).toFixed(2)} onChange={e => updateShipping(idx, { price: Math.round(parseFloat(e.target.value) * 100) || 0 })}
+                              className="w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400" />
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-400">Delai :</span>
-                            <input type="number" min="1" max="30" value={opt.minDays} onChange={e => updateShipping(idx, { minDays: parseInt(e.target.value) || 1 })}
-                              className="w-10 text-xs font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-md px-1.5 py-0.5 text-center focus:outline-none focus:ring-1 focus:ring-violet-300" />
-                            <span className="text-[10px] text-gray-400">a</span>
-                            <input type="number" min={opt.minDays} max="60" value={opt.maxDays} onChange={e => updateShipping(idx, { maxDays: Math.max(parseInt(e.target.value) || 1, opt.minDays) })}
-                              className="w-10 text-xs font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-md px-1.5 py-0.5 text-center focus:outline-none focus:ring-1 focus:ring-violet-300" />
-                            <span className="text-[10px] text-gray-400">jours</span>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Délai (jours ouvrés)</label>
+                            <div className="flex items-center gap-2">
+                              <input type="number" min="1" max="30" value={opt.minDays} onChange={e => updateShipping(idx, { minDays: parseInt(e.target.value) || 1 })}
+                                className="flex-1 w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400" />
+                              <span className="text-xs text-gray-400 font-medium">à</span>
+                              <input type="number" min={opt.minDays} max="60" value={opt.maxDays} onChange={e => updateShipping(idx, { maxDays: Math.max(parseInt(e.target.value) || 1, opt.minDays) })}
+                                className="flex-1 w-full text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400" />
+                            </div>
                           </div>
                         </div>
                       </div>
                       <button onClick={() => removeShipping(idx)}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 mt-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                       </button>
                     </div>

@@ -320,7 +320,12 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             </div>
             <span className="text-xs text-gray-400">e.IcosSys</span>
           </div>
-          <p className="text-xs text-gray-300">Paiement sécurisé par Stripe</p>
+          <div className="flex items-center gap-4">
+            <Link href="/conditions" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Conditions générales</Link>
+            <Link href="/retours" className="text-[11px] text-gray-300 hover:text-gray-500 transition-colors">Politique de retour</Link>
+            <span className="text-[11px] text-gray-200">·</span>
+            <p className="text-[11px] text-gray-300">Paiement sécurisé par Stripe</p>
+          </div>
         </div>
       </footer>
     </div>
