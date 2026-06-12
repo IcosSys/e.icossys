@@ -6,6 +6,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { useCart, CartItem } from "@/context/CartContext";
 import { ALL_COUNTRIES } from "@/lib/countries";
 import Footer from "@/components/Footer";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 function formatPrice(cents: number, locale: string): string {
   return new Intl.NumberFormat(locale === "en" ? "en-US" : "fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -121,9 +122,16 @@ export default function PanierPage() {
       });
   }, []);
 
+  const tc = useTranslations("countries");
   const deliveryCountryNames = shippingCountries
     ? shippingCountries
-        .map((code) => ALL_COUNTRIES.find((c) => c.code === code)?.name ?? code)
+        .map((code) => {
+          try {
+            return tc(code as "FR");
+          } catch {
+            return ALL_COUNTRIES.find((c) => c.code === code)?.code ?? code;
+          }
+        })
         .filter(Boolean)
     : null;
   const MAX_VISIBLE = 5;
@@ -148,7 +156,7 @@ export default function PanierPage() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: lineItems }),
+        body: JSON.stringify({ items: lineItems, locale }),
       });
 
       const data = await res.json();
@@ -183,11 +191,14 @@ export default function PanierPage() {
               <span className="text-xs font-medium text-gray-400">({items.length} {t("cart.items")}{items.length > 1 ? "s" : ""})</span>
             )}
           </div>
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center">
-              <span className="text-white text-[10px] font-bold">eI</span>
-            </div>
-          </Link>
+          <div className="flex items-center gap-1">
+            <LanguageSwitcher />
+            <Link href="/" className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center">
+                <span className="text-white text-[10px] font-bold">eI</span>
+              </div>
+            </Link>
+          </div>
         </div>
       </header>
 
