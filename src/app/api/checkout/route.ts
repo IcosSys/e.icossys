@@ -8,7 +8,10 @@ interface LineItemInput {
   productName: string;
   price: number;
   quantity: number;
+  productId?: string;
 }
+
+const VALID_LOCALES = ["fr", "en"];
 
 export async function POST(req: NextRequest) {
   const stripe = await getStripe();
@@ -22,25 +25,43 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const locale = body.locale || "fr";
+  let locale = typeof body.locale === "string" && VALID_LOCALES.includes(body.locale) ? body.locale : "fr";
 
   // Support deux formats : ancien (produit unique) et nouveau (panier multi-produits)
   let lineItems: LineItemInput[];
 
   if (body.items && Array.isArray(body.items) && body.items.length > 0) {
-    // Nouveau format : panier avec plusieurs articles
     lineItems = body.items;
   } else if (body.productName && body.price && body.quantity) {
-    // Ancien format : produit unique (compatibilité arrière)
     lineItems = [{ productName: body.productName, price: body.price, quantity: body.quantity }];
   } else {
     return NextResponse.json({ error: "Données manquantes." }, { status: 400 });
   }
 
-  // Validation
+  // Validation : données requises + quantités bornées + prix positifs
   for (const item of lineItems) {
     if (!item.productName || !item.price || !item.quantity) {
       return NextResponse.json({ error: "Données produit manquantes." }, { status: 400 });
+    }
+    if (typeof item.price !== "number" || item.price <= 0) {
+      return NextResponse.json({ error: "Prix invalide." }, { status: 400 });
+    }
+    if (typeof item.quantity !== "number" || item.quantity < 1 || item.quantity > 100) {
+      return NextResponse.json({ error: "Quantité invalide (1-100)." }, { status: 400 });
+    }
+  }
+
+  // C-01 : Valider les prix côté serveur — récupérer le vrai prix depuis les produits stockés
+  const { getProducts } = await import("@/lib/server-products");
+  const serverProducts = await getProducts();
+  for (const item of lineItems) {
+    if (item.productId) {
+      const serverProduct = serverProducts.find((p: { id: string; price: number; active: boolean }) => p.id === item.productId);
+      if (!serverProduct || !serverProduct.active) {
+        return NextResponse.json({ error: "Produit invalide ou inactif." }, { status: 400 });
+      }
+      // Forcer le prix serveur — empêche toute manipulation client
+      item.price = serverProduct.price;
     }
   }
 
@@ -113,8 +134,8 @@ export async function POST(req: NextRequest) {
     console.log(`[Checkout] Session créée: ${session.id}`);
     return NextResponse.json({ url: session.url, sessionId: session.id });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erreur Stripe";
+    const message = err instanceof Error ? err.message : "Erreur";
     console.error(`[Checkout] Échec: ${message}`);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur lors du traitement du paiement." }, { status: 500 });
   }
 }

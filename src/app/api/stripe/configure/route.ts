@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import type { StripeMode } from "@/lib/stripe";
+import { requireAdmin } from "@/lib/auth";
 
 const COOKIE_OPTIONS = {
   httpOnly: true as const,
@@ -11,6 +12,9 @@ const COOKIE_OPTIONS = {
 };
 
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const { secretKey } = await req.json();
 
   if (!secretKey || typeof secretKey !== "string") {

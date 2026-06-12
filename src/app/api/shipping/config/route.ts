@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getShippingConfig, DEFAULT_SHIPPING_OPTIONS, ShippingOption } from "@/lib/shipping";
 import { cookies } from "next/headers";
+import { requireAdmin } from "@/lib/auth";
 
 export async function GET() {
   const options = await getShippingConfig();
@@ -8,6 +9,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const { options } = (await req.json()) as { options: ShippingOption[] };
 
   if (!Array.isArray(options) || options.length === 0) {

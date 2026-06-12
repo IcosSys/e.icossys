@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 
 // AfterShip API v2026-01 (new format)
 const AFTERSHIP_API = "https://api.aftership.com/tracking/2026-01";
@@ -87,6 +88,9 @@ function parseTrackingV2026(tracking: Record<string, unknown>): TrackingResult |
 
 // POST /api/tracking — Register a tracking number with AfterShip
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   if (!AFTERSHIP_KEY) {
     return NextResponse.json({ error: "AfterShip non configuré. Ajoutez AFTERSHIP_API_KEY dans vos variables d'environnement." }, { status: 400 });
   }

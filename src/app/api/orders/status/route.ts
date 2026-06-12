@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
+import { requireAdmin } from "@/lib/auth";
 
 const VALID_STATUSES = ["paid", "processing", "shipped", "delivered", "cancelled"] as const;
 
@@ -12,6 +13,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const stripe = await getStripe();
   if (!stripe) {
     return NextResponse.json({ error: "Stripe non configuré." }, { status: 400 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { requireAdmin } from "@/lib/auth";
 
 export interface Product {
   id: string;
@@ -107,6 +108,8 @@ export async function GET(req: NextRequest) {
   const isDemo = products.length === 0;
 
   if (isAdmin) {
+    const authError = await requireAdmin(req);
+    if (authError) return authError;
     return NextResponse.json({ allProducts: source, products: source, isDemo });
   }
 
@@ -116,6 +119,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/products — créer un produit (admin)
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const body = await req.json();
   const { name, price, description, mainImage, images } = body;
 

@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { useCart } from "@/context/CartContext";
 
 interface Address {
   line1: string | null;
@@ -141,6 +142,11 @@ function SuccessContent() {
   const sessionId = searchParams.get("session_id");
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const { clearCart } = useCart();
+
+  // Vider le panier une fois arrivé sur la page de succès
+  useEffect(() => { clearCart(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fmtCurrency = (amount: number, currency: string): string => {
     return new Intl.NumberFormat(locale === "en" ? "en-US" : "fr-FR", {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 
 const COOKIE_OPTIONS = {
   httpOnly: true as const,
@@ -39,6 +40,9 @@ export async function GET(req: NextRequest) {
 
 // POST : marquer des notifications comme lues
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const body = await req.json();
   const { notificationIds, markAll } = body as { notificationIds?: string[]; markAll?: boolean };
 

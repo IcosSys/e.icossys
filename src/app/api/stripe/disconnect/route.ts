@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 
 const COOKIE_OPTIONS = {
   httpOnly: true as const,
@@ -8,7 +9,10 @@ const COOKIE_OPTIONS = {
   maxAge: 0,
 };
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const res = NextResponse.json({ success: true });
   // Supprimer les deux clés + le mode + l'ancien cookie legacy
   res.cookies.set("stripe_test_key", "", COOKIE_OPTIONS);

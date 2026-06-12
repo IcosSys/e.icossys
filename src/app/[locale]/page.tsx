@@ -51,6 +51,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [addedId, setAddedId] = useState<string | null>(null);
   const [deliveryCountryNames, setDeliveryCountryNames] = useState<string[]>([]);
+  const [imgErrors, setImgErrors] = useState<Set<string>>(new Set());
 
   const formatPrice = (cents: number): string => {
     return new Intl.NumberFormat(locale === "en" ? "en-US" : "fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -169,11 +170,12 @@ export default function Home() {
               >
                 <Link href={`/produit/${product.id}`} className="block">
                   <div className="aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 group-hover:border-gray-200 group-hover:shadow-lg transition-all duration-300">
-                    {product.mainImage ? (
+                    {product.mainImage && !imgErrors.has(product.id) ? (
                       <img
                         src={product.mainImage}
                         alt={product.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={() => setImgErrors(prev => new Set(prev).add(product.id))}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">

@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getStripe, getStripeStatus, getStripeSecretKey } from "@/lib/stripe";
+import { requireAdmin } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const diagnostics: Record<string, string | boolean | number | object | null> = {};
 
   const secretKey = await getStripeSecretKey();

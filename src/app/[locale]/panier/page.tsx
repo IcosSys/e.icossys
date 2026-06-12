@@ -148,6 +148,7 @@ export default function PanierPage() {
     setCheckingOut(true);
     try {
       const lineItems = items.map(item => ({
+        productId: item.productId,
         productName: item.name,
         price: item.price,
         quantity: item.quantity,
@@ -162,7 +163,8 @@ export default function PanierPage() {
       const data = await res.json();
 
       if (data.url) {
-        clearCart();
+        // Ne vider le panier qu'après redirection vers Stripe
+        // Le panier sera vidé côté client au chargement de la page de succès
         window.location.href = data.url;
       } else {
         alert(t("cart.checkoutError", { error: data.error || "Unknown error" }));

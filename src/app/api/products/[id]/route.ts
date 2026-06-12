@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { requireAdmin } from "@/lib/auth";
 
 export interface Product {
   id: string;
@@ -86,6 +87,9 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const { id } = await params;
   const body = await req.json();
   const products = await getProducts();
@@ -117,9 +121,12 @@ export async function PUT(
 
 // DELETE /api/products/[id]
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const { id } = await params;
   const products = await getProducts();
   const idx = products.findIndex(p => p.id === id);

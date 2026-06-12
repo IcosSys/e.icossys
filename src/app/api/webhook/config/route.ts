@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 
 const COOKIE_OPTIONS = {
   httpOnly: true as const,
@@ -10,6 +11,9 @@ const COOKIE_OPTIONS = {
 
 // GET : vérifier si le webhook est configuré
 export async function GET(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const secret = req.cookies.get("stripe_webhook_secret")?.value
     || process.env.STRIPE_WEBHOOK_SECRET
     || null;
@@ -24,6 +28,9 @@ export async function GET(req: NextRequest) {
 
 // POST : sauvegarder le webhook signing secret dans un cookie httpOnly
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const { secret } = await req.json() as { secret?: string };
 
   if (!secret || typeof secret !== "string") {

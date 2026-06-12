@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getShippingCountries } from "@/lib/countries-config";
 import { cookies } from "next/headers";
+import { requireAdmin } from "@/lib/auth";
 
 const COOKIE_NAME = "shipping_countries";
 
@@ -10,6 +11,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const { countries } = (await req.json()) as { countries: string[] };
 
   if (!Array.isArray(countries) || countries.length === 0) {

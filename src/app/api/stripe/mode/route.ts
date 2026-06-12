@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 
 const COOKIE_OPTIONS = {
   httpOnly: true as const,
@@ -10,6 +11,9 @@ const COOKIE_OPTIONS = {
 
 // POST /api/stripe/mode — basculer entre test et live
 export async function POST(req: NextRequest) {
+  const authError = await requireAdmin(req);
+  if (authError) return authError;
+
   const { mode } = await req.json();
 
   if (mode !== "test" && mode !== "live") {

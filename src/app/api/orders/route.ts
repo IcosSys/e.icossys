@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
+import { requireAdmin } from "@/lib/auth";
 
 // --- Types ---
 
@@ -91,6 +92,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get("session_id");
   const list = searchParams.get("list");
+
+  const authError = await requireAdmin(req);
+  if (authError && list) return authError;
 
   try {
     // --- Single order ---
