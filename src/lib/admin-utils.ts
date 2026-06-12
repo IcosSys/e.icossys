@@ -1,28 +1,30 @@
 // ─── Shared Admin Utility Functions ─────────────────────────────────────
+type TFn = (...args: any[]) => string;
 
-export function fmtDate(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString("fr-FR", {
+export function fmtDate(ts: number, locale: string = "fr-FR"): string {
+  return new Date(ts * 1000).toLocaleDateString(locale, {
     day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
 
-export function fmtCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: currency.toUpperCase() }).format(amount / 100);
+export function fmtCurrency(amount: number, currency: string, locale: string = "fr-FR"): string {
+  return new Intl.NumberFormat(locale, { style: "currency", currency: currency.toUpperCase() }).format(amount / 100);
 }
 
-export function fmtAddress(addr: { line1: string | null; line2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null } | null): string {
-  if (!addr) return "Non renseignée";
-  return [addr.line1, addr.line2, addr.postalCode, addr.city, addr.state, addr.country].filter(Boolean).join(", ") || "Non renseignée";
+export function fmtAddress(addr: { line1: string | null; line2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null } | null, t?: TFn): string {
+  const fallback = t ? (t as any)("common.notProvided") : "Non renseignée";
+  if (!addr) return fallback;
+  return [addr.line1, addr.line2, addr.postalCode, addr.city, addr.state, addr.country].filter(Boolean).join(", ") || fallback;
 }
 
-export function timeAgo(timestamp: number): string {
+export function timeAgo(timestamp: number, t?: TFn): string {
   const diff = Date.now() - timestamp;
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "À l'instant";
-  if (m < 60) return `Il y a ${m}min`;
+  if (m < 1) return t ? t("timeAgo.now") : "À l'instant";
+  if (m < 60) return t ? t("timeAgo.minutes", { count: m }) : `Il y a ${m}min`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `Il y a ${h}h`;
-  return `Il y a ${Math.floor(h / 24)}j`;
+  if (h < 24) return t ? t("timeAgo.hours", { count: h }) : `Il y a ${h}h`;
+  return t ? t("timeAgo.days", { count: Math.floor(h / 24) }) : `Il y a ${Math.floor(h / 24)}j`;
 }
 
 export function slugify(text: string): string {

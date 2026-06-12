@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { type StripeStatus, type StripeMode, type Order, type Notification, type ShippingOpt, NOTIF_STORAGE_KEY } from "@/types/admin";
 import { fmtCurrency } from "@/lib/admin-utils";
 

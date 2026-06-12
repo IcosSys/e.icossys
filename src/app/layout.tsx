@@ -1,26 +1,5 @@
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import "./globals.css";
-import { CartProvider } from "@/context/CartContext";
+import type { ReactNode } from "react";
 
-const geist = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "Boutique en ligne",
-  description: "Votre boutique en ligne — Paiement sécurisé Stripe",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <html lang="fr" className={`${geist.variable} antialiased`}>
-      <body>
-        <CartProvider>{children}</CartProvider>
-      </body>
-    </html>
-  );
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return children;
 }

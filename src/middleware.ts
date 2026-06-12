@@ -1,24 +1,44 @@
+import createMiddleware from "next-intl/middleware";
+import { routing } from "./i18n/routing";
 import { NextRequest, NextResponse } from "next/server";
+
+const intlMiddleware = createMiddleware(routing);
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const session = req.cookies.get("admin_session")?.value;
 
-  // Protège /admin (sauf /admin/login)
-  if (pathname.startsWith("/admin") && pathname !== "/admin/login") {
+  // Extract locale from pathname
+  const foundLocale = routing.locales.find(
+    (l) => pathname.startsWith(`/${l}/`) || pathname === `/${l}`
+  );
+  const localePrefix = foundLocale ? `/${foundLocale}` : "";
+  const pathWithoutLocale = foundLocale
+    ? pathname.slice(localePrefix.length) || "/"
+    : pathname;
+
+  // Protect /admin (except /admin/login)
+  if (
+    pathWithoutLocale.startsWith("/admin") &&
+    pathWithoutLocale !== "/admin/login"
+  ) {
     if (!session) {
-      return NextResponse.redirect(new URL("/admin/login", req.url));
+      const locale = foundLocale || routing.defaultLocale;
+      return NextResponse.redirect(
+        new URL(`/${locale}/admin/login`, req.url)
+      );
     }
   }
 
-  // Redirige vers /admin si déjà connecté et va sur /admin/login
-  if (pathname === "/admin/login" && session) {
-    return NextResponse.redirect(new URL("/admin", req.url));
+  // Redirect logged-in admin away from login
+  if (pathWithoutLocale === "/admin/login" && session) {
+    const locale = foundLocale || routing.defaultLocale;
+    return NextResponse.redirect(new URL(`/${locale}/admin`, req.url));
   }
 
-  return NextResponse.next();
+  return intlMiddleware(req);
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
 };

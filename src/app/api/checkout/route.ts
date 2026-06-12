@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+  const locale = body.locale || "fr";
 
   // Support deux formats : ancien (produit unique) et nouveau (panier multi-produits)
   let lineItems: LineItemInput[];
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
   try {
     const params: Parameters<typeof stripe.checkout.sessions.create>[0] = {
       mode: "payment",
-      locale: "fr",
+      locale: locale === "en" ? "en" : "fr",
       line_items: lineItems.map(item => ({
         price_data: {
           currency: "eur",
@@ -72,8 +73,8 @@ export async function POST(req: NextRequest) {
       shipping_address_collection: {
         allowed_countries: (await getShippingCountries()) as any,
       },
-      success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/cancel`,
+      success_url: `${baseUrl}/${locale || "fr"}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/${locale || "fr"}/cancel`,
       metadata: {
         source: "e-icossys",
         order_status: "paid",
@@ -85,7 +86,9 @@ export async function POST(req: NextRequest) {
       },
       custom_text: {
         submit: {
-          message: "Vous recevrez un email de confirmation avec le suivi de votre commande.",
+          message: locale === "en"
+            ? "You will receive a confirmation email with your order tracking."
+            : "Vous recevrez un email de confirmation avec le suivi de votre commande.",
         },
       },
     };
